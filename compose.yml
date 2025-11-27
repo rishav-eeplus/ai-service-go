@@ -1,0 +1,38 @@
+services:
+  ai-service-go:
+    container_name: ai-service-go
+    image: rishaveeplus/ai-service-go
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      - qdrant
+    volumes:
+      - ./public:/app/public:ro
+      - ./data.txt:/app/data.txt:ro
+      - ./logs:/logs/ai-service
+    restart: unless-stopped
+    networks:
+      - api_network
+      - internal_api_network
+
+  qdrant:
+    image: qdrant/qdrant
+    container_name: qdrant2
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    networks:
+      - api_network
+      - internal_api_network
+    restart: unless-stopped
+
+networks:
+  api_network:
+    external: true
+  internal_api_network:
+    external: true
+
+volumes:
+  qdrant_storage:
+  

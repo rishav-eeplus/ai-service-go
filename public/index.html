@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Testing Interface</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #fafbfc;
+            color: #24292f;
+            line-height: 1.5;
+        }
+
+        .header {
+            background: #fff;
+            border-bottom: 1px solid #d1d9e0;
+            padding: 16px 24px;
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: #24292f;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #656d76;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #cf222e;
+        }
+
+        .status-dot.online {
+            background: #1a7f37;
+        }
+
+        .main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            min-height: calc(100vh - 73px);
+        }
+
+        .panel {
+            background: #fff;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            height: fit-content;
+        }
+
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #d1d9e0;
+            font-weight: 600;
+            font-size: 16px;
+            color: #24292f;
+        }
+
+        .panel-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #24292f;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            background: #fff;
+            transition: border-color 0.15s ease;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .query-textarea {
+            min-height: 120px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .form-row .platform-select {
+            min-width: 140px;
+        }
+
+        .btn {
+            background: #1f883d;
+            color: #fff;
+            border: 1px solid rgba(31, 136, 61, 0.15);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+            width: 100%;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #1a7f37;
+        }
+
+        .btn:disabled {
+            background: #8c959f;
+            border-color: rgba(140, 149, 159, 0.15);
+            cursor: not-allowed;
+        }
+
+        .response-area {
+            min-height: 200px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding: 16px;
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #24292f;
+        }
+
+        .response-area.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #656d76;
+            font-style: italic;
+        }
+
+        .response-area.empty {
+            color: #656d76;
+            font-style: italic;
+        }
+
+        /* Markdown formatting styles */
+        .response-area h1,
+        .response-area h2,
+        .response-area h3,
+        .response-area h4,
+        .response-area h5,
+        .response-area h6 {
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .response-area h1 {
+            font-size: 2em;
+            border-bottom: 1px solid #d1d9e0;
+            padding-bottom: 8px;
+        }
+
+        .response-area h2 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #d1d9e0;
+            padding-bottom: 6px;
+        }
+
+        .response-area h3 {
+            font-size: 1.25em;
+        }
+
+        .response-area h4 {
+            font-size: 1em;
+        }
+
+        .response-area h5 {
+            font-size: 0.875em;
+        }
+
+        .response-area h6 {
+            font-size: 0.85em;
+            color: #656d76;
+        }
+
+        .response-area p {
+            margin-bottom: 16px;
+        }
+
+        .response-area ul,
+        .response-area ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        .response-area li {
+            margin-bottom: 4px;
+        }
+
+        .response-area code {
+            background: #fff;
+            border: 1px solid #d1d9e0;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .response-area pre {
+            background: #fff;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 16px;
+            overflow-x: auto;
+        }
+
+        .response-area pre code {
+            background: none;
+            border: none;
+            padding: 0;
+            white-space: pre;
+        }
+
+        .response-area blockquote {
+            border-left: 4px solid #d1d9e0;
+            padding-left: 16px;
+            margin: 16px 0;
+            color: #656d76;
+        }
+
+        .response-area table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .response-area table th,
+        .response-area table td {
+            border: 1px solid #d1d9e0;
+            padding: 8px 12px;
+            text-align: left;
+        }
+
+        .response-area table th {
+            background: #fff;
+            font-weight: 600;
+        }
+
+        .response-area a {
+            color: #0969da;
+            text-decoration: none;
+        }
+
+        .response-area a:hover {
+            text-decoration: underline;
+        }
+
+        .response-area strong {
+            font-weight: 600;
+        }
+
+        .response-area em {
+            font-style: italic;
+        }
+
+        .response-area hr {
+            border: none;
+            border-top: 1px solid #d1d9e0;
+            margin: 16px 0;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #d1d9e0;
+            border-top: 2px solid #0969da;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error {
+            background: #fff8f8;
+            border: 1px solid #ffcccc;
+            color: #d1242f;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 12px;
+        }
+
+        .follow-ups {
+            margin-top: 16px;
+        }
+
+        .follow-ups-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #24292f;
+            margin-bottom: 8px;
+        }
+
+        .follow-up-item {
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.15s ease;
+        }
+
+        .follow-up-item:hover {
+            background: #fff;
+            border-color: #0969da;
+        }
+
+        .streaming-status-container {
+            margin-top: 16px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            background: #f6f8fa;
+        }
+
+        .streaming-status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            border-bottom: 1px solid #d1d9e0;
+        }
+
+        .streaming-status-item:last-child {
+            border-bottom: none;
+        }
+
+        .streaming-status-item .status-icon {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .streaming-status-item.success .status-icon {
+            color: #1a7f37;
+        }
+
+        .streaming-status-item.error .status-icon {
+            color: #cf222e;
+        }
+
+        .streaming-status-item.warning .status-icon {
+            color: #bf8700;
+        }
+
+        .streaming-status-item.processing .status-icon {
+            color: #0969da;
+            animation: spin 1s linear infinite;
+        }
+
+        .streaming-status-item.info .status-icon {
+            color: #656d76;
+        }
+
+        .streaming-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+        }
+
+        .streaming-toggle input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .streaming-toggle label {
+            margin: 0;
+            font-weight: 400;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .main {
+                grid-template-columns: 1fr;
+                gap: 24px;
+                padding: 24px 16px;
+            }
+
+            .header-content {
+                padding: 0 16px;
+            }
+
+            .form-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .form-row .platform-select {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">Query Testing Interface</div>
+            <div class="status">
+                <div class="status-dot" id="statusIndicator"></div>
+                <span id="statusText">Checking API status...</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="panel">
+            <div class="panel-header">Query Input</div>
+            <div class="panel-body">
+                <form id="queryForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="query">Query</label>
+                            <textarea id="query" name="query" class="query-textarea"
+                                placeholder="Enter your query here..." required></textarea>
+                        </div>
+                        <div class="form-group platform-select">
+                            <label for="platform">Platform</label>
+                            <select id="platform" name="platform">
+                                <option value="standard">Standard</option>
+                                <option value="trial">Trial</option>
+                            </select>
+                        </div>
+                        <div class="form-group platform-select">
+                            <label for="apiVersion">API Version</label>
+                            <select id="apiVersion" name="apiVersion">
+                                <option value="v1">v1</option>
+                                <option value="v2">v2</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="model">OpenAI Model</label>
+                        <select id="model" name="model">
+                            <option value="gpt-5-nano">GPT-5-Nano</option>
+                            <option value="gpt-5-mini">GPT-5-Mini</option>
+                            <option value="gpt-4o-nano">GPT-4o Nano</option>
+                            <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+                            <option value="gpt-4o-mini">GPT-4o Mini</option>
+                            <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="previousConversation">Previous Conversation (Optional)</label>
+                        <textarea id="previousConversation" name="previousConversation"
+                            placeholder='[{"role":"user","content":"Hi"},{"role":"assistant","content":"Hello! How can I help?"}]'></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="submit" class="btn" id="submitBtn">Submit Query</button>
+                    </div>
+
+                    <div class="streaming-toggle">
+                        <input type="checkbox" id="useStreaming" name="useStreaming" checked>
+                        <label for="useStreaming">Enable real-time streaming (WebSocket)</label>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">Response</div>
+            <div class="panel-body">
+                <div class="streaming-status-container" id="streamingStatusContainer"></div>
+                <div class="response-area empty" id="responseContainer">
+                    <div id="responseContent">Response will appear here...</div>
+                </div>
+                <div id="followUpsContainer"></div>
+                <div id="errorContainer"></div>
+            </div>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,65 @@
+package main
+
+import (
+	"ai-service-go/internals/config"
+	"ai-service-go/internals/controllers"
+	"ai-service-go/internals/handlers"
+	"ai-service-go/internals/tools"
+	"ai-service-go/internals/utils"
+	"ai-service-go/internals/vector_db"
+	"fmt"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog/log"
+)
+
+func main() {
+	// initialize logger
+	utils.InitLogger()
+	// load config
+	config.LoadConfig()
+	// initialise aiManager
+	controllers.InitializeAiManager()
+	// create vector store
+	vector_db.NewVectorStore()
+	// add tools to registry
+	toolRegistory := tools.NewToolRegistry()
+	toolRegistory.RegisterTool(&tools.GetUserGuideInformation{
+		VectorManager: &vector_db.VectorStoreManager,
+	})
+	toolRegistory.RegisterTool(&tools.GetLayerInformation{})
+	toolRegistory.RegisterTool(&tools.GetUpdateInformation{})
+	toolRegistory.RegisterTool(&tools.GetAllAvailableLayers{})
+	// Create a new router
+	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	h := handlers.NewHandler(&vector_db.VectorStoreManager, &controllers.AiManager, toolRegistory)
+	// Serve static files
+	r.Handle("/ui/*", http.StripPrefix("/ui/", http.FileServer(http.Dir("./public"))))
+	r.Get("/load-embeddings", h.HandleLoadEmbeddings)
+	r.Get("/load-embeddings-v2", h.HandleLoadEmbeddingsV2)
+	r.Get("/vectors", h.HandleGetAllVectors)
+	r.Get("/status", h.HandleStatus)
+	r.Post("/handle-query-v1", h.HandleQueryV1)
+	r.Post("/handle-query-v1.5", h.HandleQueryAndTools)
+	r.Post("/handle-query-v2", h.HandleQueryV2)
+	r.Get("/ws/query", h.HandleWebSocketQuery)
+
+	// 404 handler
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "404 not found", http.StatusNotFound)
+	})
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%d", 8080),
+		Handler: r,
+	}
+	log.Info().Msgf("Starting server on port %d", 8080)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatal().Err(err).Msg("Error starting server")
+	}
+
+}

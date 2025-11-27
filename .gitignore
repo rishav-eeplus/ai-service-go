@@ -1,0 +1,38 @@
+# Binaries
+main
+ai-service-go
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Miscl
+
+*.txt
+qdrant_storage
+
+# Go
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+
+# Data (optional, depending on whether you want to commit data.txt)
+# data.txt
