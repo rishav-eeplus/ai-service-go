@@ -287,6 +287,35 @@ func (vs *VectorStore) GetAllVectorsWithMetadata() ([]map[string]interface{}, er
 	return results, nil
 }
 
+func (vs *VectorStore) GetContentByIDs(ids []uint64) ([]string, error) {
+	ctx := context.Background()
+	inputIds := make([]*qdrant.PointId, len(ids))
+	for i, id := range ids {
+		inputIds[i] = qdrant.NewIDNum(id)
+	}
+	// Retrieve point by ID
+	getResult, err := vs.Qdrant.Get(ctx, &qdrant.GetPoints{
+		CollectionName: vs.CollectionName,
+		Ids:            inputIds,
+		WithPayload:    qdrant.NewWithPayload(true),
+		WithVectors:    qdrant.NewWithVectors(false),
+	})
+	if err != nil {
+		utils.Logger.Errorf("Failed to get point by ID %v: %v", ids, err)
+		return nil, err
+	}
+	// return content of all points
+	var contents []string
+	for _, point := range getResult {
+		if textValue, ok := point.Payload["text"]; ok {
+			if textStr, ok := textValue.GetKind().(*qdrant.Value_StringValue); ok {
+				contents = append(contents, textStr.StringValue)
+			}
+		}
+	}
+	return contents, nil
+}
+
 // ClearCollection clears or drops the collection
 func (vs *VectorStore) ClearCollection(dropCollection bool) error {
 	ctx := context.Background()

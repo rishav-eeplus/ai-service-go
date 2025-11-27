@@ -159,6 +159,10 @@ function handleStreamMessage(message) {
             addStreamingStatus(message.message, 'success');
             break;
             
+        case 'info':
+            addStreamingStatus(message.message, 'info');
+            break;
+            
         case 'status':
             addStreamingStatus(message.message, 'processing');
             break;

@@ -3,6 +3,7 @@ package handlers
 import (
 	"ai-service-go/internals/controllers"
 	"ai-service-go/internals/data"
+	"ai-service-go/internals/orchestrator"
 	"ai-service-go/internals/tools"
 	"ai-service-go/internals/utils"
 	"ai-service-go/internals/vector_db"
@@ -18,6 +19,7 @@ type Handler struct {
 	VectorStoreManager *vector_db.VectorStore
 	AiManager          *controllers.OpenAIManager
 	ToolRegistry       *tools.ToolRegistry
+	Orchestrator       *orchestrator.Orchestrator
 }
 
 // SuccessResponse struct to hold the success response
@@ -35,11 +37,12 @@ type ErrorResponse struct {
 	Message    string `json:"message"`
 }
 
-func NewHandler(vs *vector_db.VectorStore, aim *controllers.OpenAIManager, tr *tools.ToolRegistry) *Handler {
+func NewHandler(vs *vector_db.VectorStore, aim *controllers.OpenAIManager, tr *tools.ToolRegistry, orch *orchestrator.Orchestrator) *Handler {
 	return &Handler{
 		VectorStoreManager: vs,
 		AiManager:          aim,
 		ToolRegistry:       tr,
+		Orchestrator:       orch,
 	}
 }
 
@@ -326,7 +329,12 @@ func (h *Handler) HandleWebSocketQuery(w http.ResponseWriter, r *http.Request) {
 		utils.Logger.Errorf("Error sending started message: %v", err)
 		return
 	}
+	userInput := &orchestrator.ClientRequestType{
+		UserQuery:            req.Query,
+		PreviousConversation: req.PreviousConversation,
+		Platform:             req.Platform,
+	}
 
 	// Call the streaming version of GenerateResponseV2
-	h.AiManager.GenerateResponseV2Stream(conn, req.Query, req.PreviousConversation, req.Platform, req.Model, h.ToolRegistry, r.Context())
+	h.Orchestrator.Run(conn, userInput, req.Model)
 }

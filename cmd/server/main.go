@@ -4,6 +4,7 @@ import (
 	"ai-service-go/internals/config"
 	"ai-service-go/internals/controllers"
 	"ai-service-go/internals/handlers"
+	"ai-service-go/internals/orchestrator"
 	"ai-service-go/internals/tools"
 	"ai-service-go/internals/utils"
 	"ai-service-go/internals/vector_db"
@@ -22,9 +23,9 @@ func main() {
 	config.LoadConfig()
 	// initialise aiManager
 	controllers.InitializeAiManager()
-	// create vector store
+	// initialise vector store
 	vector_db.NewVectorStore()
-	// add tools to registry
+	// initialise tool registry and register tools
 	toolRegistory := tools.NewToolRegistry()
 	toolRegistory.RegisterTool(&tools.GetUserGuideInformation{
 		VectorManager: &vector_db.VectorStoreManager,
@@ -32,12 +33,17 @@ func main() {
 	toolRegistory.RegisterTool(&tools.GetLayerInformation{})
 	toolRegistory.RegisterTool(&tools.GetUpdateInformation{})
 	toolRegistory.RegisterTool(&tools.GetAllAvailableLayers{})
+	toolRegistory.RegisterTool(&tools.LocateALayer{})
+	// 
+	fmt.Println(toolRegistory.ToolDefinitions())
+	// intialise orchestrator
+	orch := orchestrator.NewOrchestrator(controllers.AiManager, toolRegistory, &vector_db.VectorStoreManager)
 	// Create a new router
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	h := handlers.NewHandler(&vector_db.VectorStoreManager, &controllers.AiManager, toolRegistory)
+	h := handlers.NewHandler(&vector_db.VectorStoreManager, &controllers.AiManager, toolRegistory, orch)
 	// Serve static files
 	r.Handle("/ui/*", http.StripPrefix("/ui/", http.FileServer(http.Dir("./public"))))
 	r.Get("/load-embeddings", h.HandleLoadEmbeddings)

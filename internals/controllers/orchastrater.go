@@ -315,6 +315,9 @@ type StreamMessage struct {
 	Message string      `json:"message,omitempty"`
 }
 
+
+
+
 // GenerateResponseV2Stream is a streaming version that sends updates via WebSocket
 func (aiM *OpenAIManager) GenerateResponseV2Stream(conn *websocket.Conn, userQuery, previousConversation, platform, model string, registory *tools.ToolRegistry, ctx context.Context) {
 	// Helper function to send messages with error handling

@@ -48,3 +48,24 @@ func (r *ToolRegistry) FunctionDefinitions() []openai.FunctionDefinition {
 	}
 	return defs
 }
+
+// ToolDefinitions converts function definitions to tool definitions for the new API
+func (r *ToolRegistry) ToolDefinitions() []openai.Tool {
+	tools := []openai.Tool{}
+	for _, t := range r.tools {
+		def := t.Definition()
+		tools = append(tools, openai.Tool{
+			Type:     openai.ToolTypeFunction,
+			Function: &def,
+		})
+	}
+	return tools
+}
+
+func (r *ToolRegistry) AllTools() []Tool {
+	tools := []Tool{}
+	for _, t := range r.tools {
+		tools = append(tools, t)
+	}
+	return tools
+}
