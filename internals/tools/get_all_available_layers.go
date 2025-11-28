@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"ai-service-go/internals/config"
+
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -18,12 +19,10 @@ func (gl *GetAllAvailableLayers) Name() string {
 	return "get_all_available_layers"
 }
 func (gl *GetAllAvailableLayers) Description() string {
-	return `Fetch a list of all available data layers which helps in matching user queries to relevant layers on the platform. 
-	This is useful for getting layer input parameters, as they are name sensitive and need to be matched correctly.`
+	return `Returns complete list of all available data layers with their names, descriptions, and types.`
 }
 
 func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]any) (any, error) {
-
 	type response struct {
 		Data []AvailableLayersData `json:"data"`
 	}

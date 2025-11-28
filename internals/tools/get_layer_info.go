@@ -21,11 +21,8 @@ func (gl *GetLayerInformation) Name() string {
 	return "get_layer_info"
 }
 func (gl *GetLayerInformation) Description() string {
-	return `Fetch detailed information about a specific data layer, including its brief description and key 
-			properties available for it on the platform. 
-			Use tool get_all_available_layers to get the list of available layers, 
-			and match the user input to the correct layer name before calling this tool.
-			You can ask for multiple layers at a time by seperating them with comma, instead of calling this tool multiple times.`
+	return `Get detailed information about specific data layers including description and available properties/fields.
+	 		Supports multiple comma-separated layers in one call.`
 }
 
 func (gl *GetLayerInformation) Execute(ctx context.Context, params map[string]any) (any, error) {

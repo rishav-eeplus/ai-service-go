@@ -16,14 +16,15 @@ func (gu *GetUpdateInformation) Name() string {
 }
 
 func (gu *GetUpdateInformation) Description() string {
-	return `Get update cycle and data availability information for a specific data layer/layers and platform. 
-	Do not call tool repetitively if there are multiple layers, just seperate them by comma(,). Use tool get_all_available_layers to get the list of available layers, and match the user input to the correct layer name before calling this tool.`
+	return `Get update cycle frequency (annually/quarterly) and data availability timeline 
+			for specific data layers on trial or standard platforms. 
+			Supports multiple comma-separated layers.`
 }
 
 func (gu *GetUpdateInformation) Execute(ctx context.Context, params map[string]any) (any, error) {
 	layers := strings.Split(params["layer"].(string), ",")
 	platform := params["platform"].(string)
-	fmt.Println("Input: layers - " + strings.Join(layers, ",") + " "+ "platform:" + platform  )
+	fmt.Println("Input: layers - " + strings.Join(layers, ",") + " " + "platform:" + platform)
 	if len(layers) == 0 || platform == "" {
 		return "Update cycle : Not available, Available data till : Not available ", nil
 	}
@@ -49,7 +50,6 @@ func (gu *GetUpdateInformation) Execute(ctx context.Context, params map[string]a
 	dataAvailable = strings.ReplaceAll(dataAvailable, "current_year", fmt.Sprintf("%d", currentYear))
 	dataAvailable = strings.ReplaceAll(dataAvailable, "last_year", fmt.Sprintf("%d", currentYear-1))
 	dataAvailable = strings.ReplaceAll(dataAvailable, "current_quarter", fmt.Sprintf("Q%d", currentQuarter))
-	fmt.Println(matchedLayer)
 	return fmt.Sprintf("Matched Layer name %s ,Update cycle : %s, Available data till : %s", matchedLayer, updateCycle, dataAvailable), nil
 }
 func (gu *GetUpdateInformation) Definition() openai.FunctionDefinition {

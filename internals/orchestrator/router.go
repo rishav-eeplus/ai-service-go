@@ -7,12 +7,12 @@ import (
 	"strings"
 )
 
-func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *ClientRequestType) ([]tools.Tool, error) {
+func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *ClientRequestType) ([]tools.Tool, string, error) {
 	sendMessage(StreamMessage{
 		Type:    "info",
 		Message: "Identifying useful_tools...",
 	})
-	intentSchema := map[string]interface{}{
+	toolSchema := map[string]interface{}{
 		"type":        "object",
 		"description": "Response containing list of useful_tools from the predefined list of their name with name and descriptions that match the user's needs.",
 		"properties": map[string]interface{}{
@@ -23,20 +23,24 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 				},
 				"description": "Array of useful_tools that may help user for their query",
 			},
+			"reasoning": map[string]interface{}{
+				"type":        "string",
+				"description": "The reasoning behind selecting the useful_tools. Explain why these tools are relevant to the user's query.",
+			},
 		},
-		"required":             []string{"useful_tools"},
+		"required":             []string{"useful_tools", "reasoning"},
 		"additionalProperties": false,
 	}
-	intentsSummary := "Predefined Intents:\n"
+	toolsSummary := "Available Tools:\n"
 	for i, tool := range o.ToolResistory.AllTools() {
-		intentsSummary += fmt.Sprintf("%d. Name : %s, Description: %s\n", i+1, tool.Name(), tool.Description())
+		toolsSummary += fmt.Sprintf("%d. Name : %s, Description: %s\n", i+1, tool.Name(), tool.Description())
 	}
-	instructions := fmt.Sprintf(`Determine the most relevant tools from the predefined list %s  based on the user's query and previous conversations.  
-							Provide the identified tools as an array of tool names.`, intentsSummary)
+	instructions := fmt.Sprintf(`Instruction : %s .Determine the most relevant tools from the predefined list %s  based on the user's query and previous conversations.  
+							Provide the identified tools as an array of tool names.`, tools.ToolUsageInstructions, toolsSummary)
 	var err error
-	rawResponse, _, err := o.AIManager.GetAIResponse(instructions, input.UserQuery, input.PreviousConversation, "", intentSchema, input.Platform)
+	rawResponse, _, err := o.AIManager.GetAIResponse(instructions, input.UserQuery, input.PreviousConversation, "", toolSchema, input.Platform)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Parse the response which should be a map with "useful_tools" key
@@ -46,7 +50,7 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 			Type:    "error",
 			Message: fmt.Sprintf("unexpected response type: %T", rawResponse),
 		})
-		return nil, fmt.Errorf("unexpected response type: %T", rawResponse)
+		return nil, "", fmt.Errorf("unexpected response type: %T", rawResponse)
 	}
 
 	usefulToolsArray, ok := responseMap["useful_tools"].([]interface{})
@@ -55,7 +59,7 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 			Type:    "error",
 			Message: fmt.Sprintf("unexpected useful_tools type: %T", responseMap["useful_tools"]),
 		})
-		return nil, fmt.Errorf("unexpected useful_tools type: %T", responseMap["useful_tools"])
+		return nil, "", fmt.Errorf("unexpected useful_tools type: %T", responseMap["useful_tools"])
 	}
 
 	var response []string
@@ -80,12 +84,19 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 			Type:    "error",
 			Message: fmt.Errorf("failed to marshal matched useful_tools: %v", err).Error(),
 		})
-		return nil, fmt.Errorf("failed to marshal matched useful_tools: %v", err)
+		return nil, "", fmt.Errorf("failed to marshal matched useful_tools: %v", err)
+	}
+	reasoning, ok := responseMap["reasoning"].(string)
+	if !ok {
+		sendMessage(StreamMessage{
+			Type:    "warning",
+			Message: fmt.Sprintf("unexpected reasoning type: %T", responseMap["reasoning"]),
+		})
 	}
 	sendMessage(StreamMessage{
 		Type:    "info",
 		Data:    matchedToolsJSON,
-		Message: fmt.Sprintf("Identified tool(s) %s", strings.Join(response, ", ")),
+		Message: fmt.Sprintf("Identified tool(s) %s\n Reasoning: %s", strings.Join(response, ", "), reasoning),
 	})
-	return matchedTools, nil
+	return matchedTools, reasoning, nil
 }

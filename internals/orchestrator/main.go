@@ -49,7 +49,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 		return true
 	}
 
-	useful_tools, err := o.Router(sendMessage, input)
+	useful_tools, reasoning, err := o.Router(sendMessage, input)
 	if err != nil {
 		utils.Logger.Errorf("Router error: %v", err)
 		sendMessage(StreamMessage{
@@ -71,7 +71,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 	// }
 
 	// Step 3: Planning and Tool Execution
-	planOutput, err := o.PlannerAndToolExecuter(sendMessage, input, useful_tools, model, context.Background())
+	planOutput, err := o.PlannerAndToolExecuter(sendMessage, input, useful_tools, reasoning, model, context.Background())
 	if err != nil {
 		utils.Logger.Errorf("Planner error: %v", err)
 		sendMessage(StreamMessage{
