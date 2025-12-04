@@ -29,10 +29,11 @@ func (gl *GetLayerInformation) Execute(ctx context.Context, params map[string]an
 	layerNames := strings.Split(params["layers"].(string), ",")
 	result := map[string]LayerInformation{}
 	var err error
+	var x *struct{ Data LayerInformation }
 	for _, layerName := range layerNames {
 		layerName = formatLayerName(layerName)
 		url := fmt.Sprintf("%s?name=%s", config.AppConfig.LayerInfoURL, layerName)
-		x, err := makeGetRequest[struct{ Data LayerInformation }](ctx, url)
+		x, err = makeGetRequest[struct{ Data LayerInformation }](ctx, url)
 		if err != nil {
 			continue
 		}

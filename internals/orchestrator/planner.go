@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	// "strings"
 
 	"github.com/sashabaranov/go-openai"
@@ -22,9 +23,30 @@ var ReActSystemPrompt = fmt.Sprintf(`You are Anna, a female assistant for EEHORI
 		3. **Observation**: Analyze the tool result
 		Continue this cycle until you have enough information.		
 		# Tool Usage Guidelines: %s
+		
+		## YOUR CAPABILITIES (IMPORTANT - READ CAREFULLY)
+		You are an INFORMATIONAL assistant only. You can ONLY:
+		- Answer questions about layers, their properties, and metadata
+		- Provide information about platform features and how to use them
+		- Explain what data is available and how to find it
+		- Guide users on how THEY can perform actions on the platform
+		- Retrieve and share layer information, update schedules, and user guide content
+		
+		You CANNOT and must NEVER claim to do actions on behalf of the user or the platform, or any actions outside 
+		 the scope of your capabilities.
+		
 		# Constraints
+		- Be interactive and engaging while assisting users.
 		- If a user greets you like Hi Anna or Hello Anna, simply respond with a polite greeting.
         - If a query falls outside the scope of EEHORIZON, politely apologize, acknowledging the impossibility of helping in a creative way.
+
+		## Clarification Rules (IMPORTANT)
+		When you encounter ambiguous situations that require user input, ask for clarification:
+		- If a search returns multiple matching items (e.g., multiple layers with similar names like "substations", "transmission_substations", "distribution_substations"), set "needsClarification" to true and list the options.
+		- If the user's query is vague or could mean multiple things, ask for clarification.
+		- If you need more specific information to proceed, ask for it.
+		- When asking for clarification, provide clear options for the user to choose from.
+		- Maximum 5 options should be presented to the user.
 
 		## Final Output Rules
 		- Your final response must ONLY contain the direct answer to the user's question.
@@ -34,9 +56,12 @@ var ReActSystemPrompt = fmt.Sprintf(`You are Anna, a female assistant for EEHORI
 		- The "result" field should contain ONLY the answer the user needs, nothing else.
 		# Output Format
         - Return all responses in JSON format.
-        - **result**:  Your response.
-        - **followUps**: An array of questions(maximum 2) formatted as if the user is asking them to the assistant, 
-		   also answered using the available tools and user guide data.
+        - **result**: Your response.
+        - **needsClarification**: Boolean - Set to true ONLY when you need the user to choose from options or provide more information.
+        - **clarificationMessage**: String - The question you want to ask the user (only when needsClarification is true).
+        - **options**: Array of strings - The options for the user to choose from (only when needsClarification is true, max 5 options).
+        - **followUps**: An array of questions(maximum 2) formatted as if the user is asking them to the assistant,  
+		   also answered using the available tools and user guide data. Leave empty if needsClarification is true.
 `, tools.ToolUsageInstructions)
 
 var FinalOutputSchema = map[string]interface{}{
@@ -46,6 +71,21 @@ var FinalOutputSchema = map[string]interface{}{
 			"type":        "string",
 			"description": "The response provided by the assistant.",
 		},
+		"needsClarification": map[string]interface{}{
+			"type":        "boolean",
+			"description": "Set to true when the assistant needs the user to choose from options or provide more information.",
+		},
+		"clarificationMessage": map[string]interface{}{
+			"type":        "string",
+			"description": "The question to ask the user when clarification is needed.",
+		},
+		"options": map[string]interface{}{
+			"type":        "array",
+			"description": "Options for the user to choose from when clarification is needed. Maximum 5 options.",
+			"items": map[string]interface{}{
+				"type": "string",
+			},
+		},
 		"followUps": map[string]interface{}{
 			"type":        "array",
 			"description": "An array of follow-up questions for further engagement with the user. The question should be such that it can be future questions asked by the user to get more clarity on their requirements.",
@@ -54,16 +94,19 @@ var FinalOutputSchema = map[string]interface{}{
 			},
 		},
 	},
-	"required":             []string{"result", "followUps"},
+	"required":             []string{"result", "needsClarification", "clarificationMessage", "options", "followUps"},
 	"additionalProperties": false,
 }
 
 type PlannerOutput struct {
-	Result    string   `json:"result"`
-	FollowUps []string `json:"followUps"`
+	Result               string   `json:"result"`
+	NeedsClarification   bool     `json:"needsClarification"`
+	ClarificationMessage string   `json:"clarificationMessage"`
+	Options              []string `json:"options"`
+	FollowUps            []string `json:"followUps"`
 }
 
-func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage) bool, input *ClientRequestType, useful_tools []tools.Tool, reasoningForUsingTool string, model string, ctx context.Context) (*PlannerOutput, error) {
+func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage) bool, input *ClientRequestType, model string, ctx context.Context, loopsRemaining int) (*PlannerOutput, error) {
 	// Use context.Background() if ctx is nil
 	if ctx == nil {
 		ctx = context.Background()
@@ -74,6 +117,12 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage
 
 	userContent := fmt.Sprintf("User's query: %s, previous conversation: %s, user's platform: %s",
 		input.UserQuery, input.PreviousConversation, input.Platform)
+
+	// If this is the last clarification loop, instruct the AI to provide a final response
+	if loopsRemaining <= 1 {
+		userContent += "\n\n**IMPORTANT: This is your final opportunity to respond. Do NOT ask for clarification. You MUST provide a complete response based on all the context you have gathered so far. If there are multiple options, provide information about ALL of them or make a reasonable choice and explain your reasoning.**"
+	}
+
 	// userContent += fmt.Sprintf("\nYou must use these tools: %s. Reasoning for using these tools: %s", strings.Join(extractIntentNames(useful_tools), ", "), reasoningForUsingTool)
 	messages := []openai.ChatCompletionMessage{
 		{

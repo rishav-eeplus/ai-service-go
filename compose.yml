@@ -10,7 +10,8 @@ services:
       - qdrant
     volumes:
       - ./public:/app/public:ro
-      - ./data.txt:/app/data.txt:ro
+      - ./data/data.txt:/app/data.txt:ro
+      - ./data/data.json:/app/data.json:ro
       - ./logs:/logs/ai-service
     restart: unless-stopped
     networks:
@@ -18,7 +19,7 @@ services:
       - internal_api_network
 
   qdrant:
-    image: qdrant/qdrant
+    image: qdrant/qdrant:v1.16
     container_name: qdrant2
     volumes:
       - ./qdrant_storage:/qdrant/storage

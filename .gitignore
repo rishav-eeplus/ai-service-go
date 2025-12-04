@@ -1,7 +1,7 @@
 # Binaries
 main
 ai-service-go
-
+data 
 # Logs
 *.log
 logs/

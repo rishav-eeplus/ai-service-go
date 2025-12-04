@@ -54,7 +54,9 @@ func SendSuccessResponse(w http.ResponseWriter, statusCode int, message string, 
 		Message: message,
 		Content: data,
 		Data:    data}
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	encwoder := json.NewEncoder(w)
+	encwoder.SetEscapeHTML(false)
+	if err := encwoder.Encode(response); err != nil {
 		utils.HandleError(w, err, "Error encoding json data", "error", 500)
 		return
 	}
@@ -93,6 +95,15 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		"timestamp":             time.Now().UTC(),
 	})
 
+}
+
+func (h *Handler) TempHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	data := tools.GetLayerPath()
+	SendSuccessResponse(w, 200, "Temp Handler", map[string]interface{}{
+		"message": "Got the data",
+		"data":    data,
+	})
 }
 
 // handleLoadEmbeddings loads embeddings into the vector store

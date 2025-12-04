@@ -33,9 +33,7 @@ func main() {
 	toolRegistory.RegisterTool(&tools.GetLayerInformation{})
 	toolRegistory.RegisterTool(&tools.GetUpdateInformation{})
 	toolRegistory.RegisterTool(&tools.GetAllAvailableLayers{})
-	toolRegistory.RegisterTool(&tools.LocateALayer{})
-	// 
-	fmt.Println(toolRegistory.ToolDefinitions())
+	toolRegistory.RegisterTool(&tools.LocateALayer{}) 
 	// intialise orchestrator
 	orch := orchestrator.NewOrchestrator(controllers.AiManager, toolRegistory, &vector_db.VectorStoreManager)
 	// Create a new router
@@ -54,6 +52,7 @@ func main() {
 	r.Post("/handle-query-v1.5", h.HandleQueryAndTools)
 	r.Post("/handle-query-v2", h.HandleQueryV2)
 	r.Get("/ws/query", h.HandleWebSocketQuery)
+	r.Get("/temp", h.TempHandler)
 
 	// 404 handler
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {

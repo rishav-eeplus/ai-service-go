@@ -7,8 +7,12 @@ const errorContainer = document.getElementById('errorContainer');
 const statusIndicator = document.getElementById('statusIndicator');
 const statusText = document.getElementById('statusText');
 const streamingStatusContainer = document.getElementById('streamingStatusContainer');
+const inlineStreamingContainer = document.getElementById('inlineStreamingContainer');
 
 let currentWebSocket = null;
+
+// Conversation history tracking
+let conversationHistory = [];
 
 // Check API status
 async function checkApiStatus() {
@@ -27,9 +31,9 @@ async function checkApiStatus() {
 }
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     checkApiStatus();
-    
+
     // Configure marked.js if available
     if (typeof marked !== 'undefined') {
         marked.setOptions({
@@ -39,20 +43,43 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Add streaming status update function
+// Update the previous conversation textarea with current history
+function updatePreviousConversationField() {
+    const previousConversationField = document.getElementById('previousConversation');
+    if (previousConversationField && conversationHistory.length > 0) {
+        previousConversationField.value = JSON.stringify(conversationHistory, null, 2);
+    }
+}
+
+// Add a message to conversation history
+function addToConversationHistory(role, content) {
+    conversationHistory.push({ role, content });
+    updatePreviousConversationField();
+}
+
+// Clear conversation history
+function clearConversationHistory() {
+    conversationHistory = [];
+    const previousConversationField = document.getElementById('previousConversation');
+    if (previousConversationField) {
+        previousConversationField.value = '';
+    }
+}
+
+// Add streaming status update function - updates single message instead of stacking
 function addStreamingStatus(message, type = 'info') {
-    const statusItem = document.createElement('div');
-    statusItem.className = `streaming-status-item ${type}`;
-    statusItem.innerHTML = `
-        <span class="status-icon">${getStatusIcon(type)}</span>
-        <span class="status-text">${message}</span>
+    // Update the single status message instead of appending
+    inlineStreamingContainer.innerHTML = `
+        <div class="streaming-status-item ${type}">
+            <span class="status-icon">${getStatusIcon(type)}</span>
+            <span class="status-text">${message}</span>
+        </div>
     `;
-    streamingStatusContainer.appendChild(statusItem);
-    streamingStatusContainer.scrollTop = streamingStatusContainer.scrollHeight;
+    responseContainer.scrollTop = responseContainer.scrollHeight;
 }
 
 function getStatusIcon(type) {
-    switch(type) {
+    switch (type) {
         case 'success': return '✓';
         case 'error': return '✗';
         case 'warning': return '⚠';
@@ -62,7 +89,7 @@ function getStatusIcon(type) {
 }
 
 function clearStreamingStatus() {
-    streamingStatusContainer.innerHTML = '';
+    inlineStreamingContainer.innerHTML = '';
 }
 
 // WebSocket connection handler
@@ -88,10 +115,10 @@ function connectWebSocket(query, platform, model, previousConversation) {
         }
     }, 10000); // 10 second timeout
 
-    currentWebSocket.onopen = function() {
+    currentWebSocket.onopen = function () {
         clearTimeout(connectionTimeout);
         addStreamingStatus('Connected to server', 'success');
-        
+
         // Send query
         const payload = {
             query: query,
@@ -99,7 +126,7 @@ function connectWebSocket(query, platform, model, previousConversation) {
             model: model,
             previousConversation: previousConversation || 'No previous conversation provided'
         };
-        
+
         try {
             currentWebSocket.send(JSON.stringify(payload));
         } catch (error) {
@@ -108,7 +135,7 @@ function connectWebSocket(query, platform, model, previousConversation) {
         }
     };
 
-    currentWebSocket.onmessage = function(event) {
+    currentWebSocket.onmessage = function (event) {
         try {
             const message = JSON.parse(event.data);
             handleStreamMessage(message);
@@ -118,24 +145,22 @@ function connectWebSocket(query, platform, model, previousConversation) {
         }
     };
 
-    currentWebSocket.onerror = function(error) {
+    currentWebSocket.onerror = function (error) {
         console.error('WebSocket error:', error);
         addStreamingStatus('Connection error occurred', 'error');
         showError('WebSocket connection error');
     };
 
-    currentWebSocket.onclose = function(event) {
+    currentWebSocket.onclose = function (event) {
         clearTimeout(connectionTimeout);
-        
+
         // Log close reason
-        if (event.code === 1000) {
-            addStreamingStatus('Connection closed normally', 'info');
-        } else if (event.code === 1006) {
-            addStreamingStatus('Connection closed abnormally', 'warning');
+        if (event.code === 1000 || event.code === 1006) {
+            addStreamingStatus('Connection closed', 'info');
         } else {
             addStreamingStatus(`Connection closed (code: ${event.code})`, 'info');
         }
-        
+
         submitBtn.disabled = false;
         submitBtn.textContent = 'Submit Query';
         currentWebSocket = null;
@@ -143,7 +168,7 @@ function connectWebSocket(query, platform, model, previousConversation) {
 }
 
 // Cleanup function to close WebSocket when page is unloaded
-window.addEventListener('beforeunload', function() {
+window.addEventListener('beforeunload', function () {
     if (currentWebSocket) {
         currentWebSocket.close(1000, 'Page unload');
         currentWebSocket = null;
@@ -153,25 +178,25 @@ window.addEventListener('beforeunload', function() {
 // Handle different types of streaming messages
 function handleStreamMessage(message) {
     console.log('Received message:', message);
-    
-    switch(message.type) {
+
+    switch (message.type) {
         case 'started':
             addStreamingStatus(message.message, 'success');
             break;
-            
+
         case 'info':
             addStreamingStatus(message.message, 'info');
             break;
-            
+
         case 'status':
             addStreamingStatus(message.message, 'processing');
             break;
-            
+
         case 'intents':
             const intentNames = message.data.map(intent => intent.Name).join(', ');
             addStreamingStatus(`Intents: ${intentNames}`, 'success');
             break;
-            
+
         case 'vectors':
             if (message.data && message.data.length > 0) {
                 addStreamingStatus(`Found ${message.data.length} relevant vectors: [${message.data.join(', ')}]`, 'success');
@@ -179,27 +204,36 @@ function handleStreamMessage(message) {
                 addStreamingStatus('No additional vectors needed', 'info');
             }
             break;
-            
+
         case 'warning':
             addStreamingStatus(message.message, 'warning');
             break;
-            
+
+        case 'success':
+            addStreamingStatus(message.message, 'success');
+            break;
+
+        case 'clarification':
+            addStreamingStatus('Clarification needed', 'warning');
+            displayClarificationOptions(message.message, message.options);
+            break;
+
         case 'response':
             addStreamingStatus('Response received', 'success');
             displayResponse(message.data);
             break;
-            
+
         case 'complete':
             addStreamingStatus(message.message, 'success');
             responseContainer.classList.remove('loading');
             break;
-            
+
         case 'error':
             addStreamingStatus(`Error: ${message.message}`, 'error');
             showError(message.message);
             responseContainer.classList.remove('loading');
             break;
-            
+
         default:
             console.log('Unknown message type:', message.type);
     }
@@ -219,23 +253,27 @@ form.addEventListener('submit', async (e) => {
         return;
     }
 
+    // Add user query to conversation history
+    addToConversationHistory('user', query);
+
     // Show loading state
     submitBtn.disabled = true;
     submitBtn.textContent = 'Processing...';
-    responseContainer.className = 'response-area loading';
-    responseContent.innerHTML = 'Processing request<span class="spinner"></span>';
+    responseContainer.className = 'response-area';
+    responseContent.innerHTML = '';
     clearMessages();
     clearStreamingStatus();
 
     // Check if streaming is enabled (v2 with WebSocket)
     const useStreaming = document.getElementById('useStreaming').checked;
-    
+
     if (useStreaming && apiVersion === 'v2') {
         // Use WebSocket for streaming
         addStreamingStatus('Initializing streaming connection...', 'info');
         connectWebSocket(query, platform, model, previousConversation);
     } else {
         // Use traditional HTTP request
+        addStreamingStatus('Sending request...', 'processing');
         try {
             const requestBody = {
                 query: query,
@@ -261,11 +299,14 @@ form.addEventListener('submit', async (e) => {
             const data = await response.json();
 
             if (response.ok) {
+                addStreamingStatus('Response received', 'success');
                 displayResponse(data.content.result || data.content);
             } else {
+                addStreamingStatus('Error occurred', 'error');
                 showError(data.message || 'An error occurred while processing your query');
             }
         } catch (error) {
+            addStreamingStatus('Network error', 'error');
             showError('Network error: ' + error.message);
         } finally {
             // Reset button state
@@ -277,16 +318,26 @@ form.addEventListener('submit', async (e) => {
 
 function displayResponse(content) {
     responseContainer.className = 'response-area';
-    
+
     try {
         // Check if content is an object with result property
         let resultContent = content;
         if (typeof content === 'object' && content !== null) {
             resultContent = content.result || JSON.stringify(content, null, 2);
         }
-        
-        // Render markdown as HTML
-        responseContent.innerHTML = renderMarkdown(resultContent);
+
+        // Add assistant response to conversation history
+        addToConversationHistory('assistant', resultContent);
+
+        // Clear the query input for the next question
+        document.getElementById('query').value = '';
+
+        // Add divider if there are streaming status items
+        if (inlineStreamingContainer.children.length > 0) {
+            responseContent.innerHTML = '<hr class="response-divider"><div class="final-response">' + renderMarkdown(resultContent) + '</div>';
+        } else {
+            responseContent.innerHTML = renderMarkdown(resultContent);
+        }
 
         // Display follow-ups if available
         if (content.followUps && content.followUps.length > 0) {
@@ -295,7 +346,15 @@ function displayResponse(content) {
     } catch (error) {
         console.error('Error displaying response:', error);
         // If not JSON, display as markdown
-        responseContent.innerHTML = renderMarkdown(String(content));
+        const errorContent = String(content);
+        addToConversationHistory('assistant', errorContent);
+        document.getElementById('query').value = '';
+
+        if (inlineStreamingContainer.children.length > 0) {
+            responseContent.innerHTML = '<hr class="response-divider"><div class="final-response">' + renderMarkdown(errorContent) + '</div>';
+        } else {
+            responseContent.innerHTML = renderMarkdown(errorContent);
+        }
     }
 }
 
@@ -332,7 +391,7 @@ function displayFollowUps(followUps) {
     `;
 
     // Add event listener for follow-up items
-    followUpsContainer.addEventListener('click', function(e) {
+    followUpsContainer.addEventListener('click', function (e) {
         if (e.target.classList.contains('follow-up-item')) {
             const question = e.target.getAttribute('data-question');
             useFollowUp(question);
@@ -345,10 +404,71 @@ function useFollowUp(question) {
     document.getElementById('query').focus();
 }
 
+// Display clarification options when the bot needs user input
+function displayClarificationOptions(message, options) {
+    responseContainer.className = 'response-area';
+
+    const optionsHtml = options.map((option, index) => `
+        <button class="clarification-option" data-option="${escapeHtml(option)}">
+            ${escapeHtml(option)}
+        </button>
+    `).join('');
+
+    responseContent.innerHTML = `
+        <div class="clarification-container">
+            <div class="clarification-message">
+                <span class="clarification-icon">🤔</span>
+                ${escapeHtml(message)}
+            </div>
+            <div class="clarification-options">
+                ${optionsHtml}
+            </div>
+        </div>
+    `;
+
+    // Add click handlers for options
+    const optionButtons = responseContent.querySelectorAll('.clarification-option');
+    optionButtons.forEach(button => {
+        button.addEventListener('click', function () {
+            const selectedOption = this.getAttribute('data-option');
+            sendClarificationResponse(selectedOption);
+
+            // Remove the clarification list and show selection message
+            responseContent.innerHTML = `
+                <div class="clarification-selected">
+                    <span class="selected-icon">✓</span>
+                    <span class="selected-text"><strong>${escapeHtml(selectedOption)}</strong> selected</span>
+                </div>
+            `;
+            addStreamingStatus('Processing your selection...', 'processing');
+        });
+    });
+}
+
+// Send user's clarification response back to the server
+function sendClarificationResponse(response) {
+    if (currentWebSocket && currentWebSocket.readyState === WebSocket.OPEN) {
+        const payload = {
+            type: 'clarification_response',
+            response: response
+        };
+
+        try {
+            currentWebSocket.send(JSON.stringify(payload));
+            addStreamingStatus('Sending your selection...', 'processing');
+        } catch (error) {
+            console.error('Error sending clarification response:', error);
+            addStreamingStatus('Failed to send selection', 'error');
+        }
+    } else {
+        addStreamingStatus('Connection lost. Please try again.', 'error');
+    }
+}
+
 function showError(message) {
     responseContainer.className = 'response-area empty';
     responseContent.textContent = 'Response will appear here...';
-    
+
     errorContainer.innerHTML = `
         <div class="error">
             ${message}

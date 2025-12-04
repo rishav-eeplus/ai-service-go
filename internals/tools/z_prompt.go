@@ -43,7 +43,7 @@ var ToolUsageInstructions = `
 - **Best for:** Onboarding, how-to questions, and feature explanations.
 
 ### 5. locate_a_layer
-- **Purpose:** Provide step-by-step navigation instructions.
+- **Purpose:** Provide step-by-step navigation instructions for getting a specific layer.
 - **Use when:** Users need guidance on finding and enabling a specific layer in the UI.
 - **Requires:** Accurate layer name and type.
 
