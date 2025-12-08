@@ -1,16 +1,14 @@
 package tools
 
 import (
-	"ai-service-go/internals/config"
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"slices"
 	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
 )
+
+var AllLayerPaths = map[string]string{}
 
 type dataType struct {
 	Title    string     `json:"title"`
@@ -124,95 +122,10 @@ func (gl *LocateALayer) Definition() openai.FunctionDefinition {
 
 // Helper functions
 func GetLayerPath() map[string]string {
-	// load the data.json file
-	var datas []dataType
-	file, err := os.Open("./data.json")
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return nil
+	if len(AllLayerPaths) > 0 {
+		return AllLayerPaths
 	}
-	defer file.Close()
-
-	err = json.NewDecoder(file).Decode(&datas)
-	if err != nil {
-		fmt.Println("Error decoding JSON:", err)
-		return nil
-	}
-	dictionary := map[string]string{}
-	for i := range datas {
-		recursivelyCheckPath(datas[i], "", 0, []string{}, &dictionary)
-	}
-	url := config.AppConfig.AllLayersURL
-	type response struct {
-		Data []AvailableLayersData `json:"data"`
-	}
-	xxx := map[string]string{}
-	result, _ := makeGetRequest[response](context.Background(), url)
-	for i := range len(result.Data) {
-		x := result.Data[i]
-		xxx[x.Name] = dictionary[x.Name]
-	}
-	return xxx
-}
-func replaceSpaceAndMakeSmallCase(str string) string {
-	return strings.ToLower(strings.ReplaceAll(str, " ", "_"))
-}
-func recursivelyCheckPath(data dataType, layerName string, depth int, paths []string, dict *map[string]string) {
-	paths = append(paths, data.Title)
-	var extractedIso string
-	if depth == 0 {
-		(*dict)[replaceSpaceAndMakeSmallCase(data.Title)] = data.Title
-		extractedIso = extractIso(data.Title)
-		if extractedIso != "" {
-			layerName = extractedIso + "_"
-		}
-	} else {
-		extractedIso = extractIso(layerName)
-		if extractedIso != "" {
-			layerName += data.Title + "_"
-
-		} else {
-			layerName = data.Title
-		}
-	}
-	if (len(data.Children) == 0) || strings.Contains(replaceSpaceAndMakeSmallCase(data.Title), "planned_transmission_upgrades") {
-		if string(layerName[len(layerName)-1]) == "_" {
-			layerName = layerName[:len(layerName)-1]
-		}
-		requiredLayers := []string{
-			"substations",
-			"operational_resources",
-			"planned_resources",
-			"resource_node_lmp_basis_analysis_contour",
-			"yearly_ancillary_services_pricing",
-			"basis_analysis",
-			"load_forecast_contours",
-			"planned_transmission_upgrades",
-			"top_50_binding_constraints",
-			"rtp_load_forecast_contours",
-		}
-		var key string
-		isIsoRequired := slices.Contains(requiredLayers, replaceSpaceAndMakeSmallCase(data.Title))
-		if isIsoRequired {
-			key = replaceSpaceAndMakeSmallCase(layerName)
-		} else {
-			key = replaceSpaceAndMakeSmallCase(data.Title)
-		}
-		(*dict)[key] = strings.Join(paths, ` ->  `)
-		return
-	}
-
-	for i := 0; i < len(data.Children); i++ {
-		currChild := data.Children[i]
-		recursivelyCheckPath(currChild, layerName, depth+1, paths, dict)
-	}
-}
-func extractIso(layerName string) string {
-	isos := []string{"ercot", "miso", "pjm", "caiso", "nyiso", "spp", "iso-ne", "wecc", "serc"}
-	for _, iso := range isos {
-		if strings.HasPrefix(strings.ToLower(strings.ReplaceAll(layerName, " ", "_")), iso) {
-			return iso
-		}
-	}
-	return ""
+	paths := getAllPaths()
+	AllLayerPaths = paths
+	return AllLayerPaths
 }

@@ -3,10 +3,11 @@ package tools
 import (
 	"context"
 
-	"ai-service-go/internals/config"
-
 	openai "github.com/sashabaranov/go-openai"
 )
+
+var AllAvailableLayers []AvailableLayersData
+var InternalLayers = []string{"hunt_power_(hp-2)"}
 
 type GetAllAvailableLayers struct{}
 type AvailableLayersData struct {
@@ -23,16 +24,23 @@ func (gl *GetAllAvailableLayers) Description() string {
 }
 
 func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]any) (any, error) {
-	type response struct {
-		Data []AvailableLayersData `json:"data"`
+	if len(AllAvailableLayers) > 0 {
+		return AllAvailableLayers, nil
 	}
-	url := config.AppConfig.AllLayersURL
-	var result *response
-	result, err := makeGetRequest[response](ctx, url)
+	layers , err := getAllAvailableLayers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return result.Data, nil
+	paths := getAllPaths()
+	AllLayerPaths = paths
+	filteredLayers := []AvailableLayersData{}
+	for _, layer := range layers {
+		if _, exists := paths[replaceSpaceAndMakeSmallCase(layer.Name)]; exists {
+			filteredLayers = append(filteredLayers, layer)
+		}
+	}
+	AllAvailableLayers = filteredLayers
+	return AllAvailableLayers, nil
 }
 
 func (gl *GetAllAvailableLayers) Definition() openai.FunctionDefinition {

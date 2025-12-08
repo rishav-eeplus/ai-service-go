@@ -8,10 +8,10 @@ import (
 	"strings"
 )
 
-var finalResponseSchema = map[string]interface{}{
+var finalResponseSchema = map[string]any{
 	"type": "object",
-	"properties": map[string]interface{}{
-		"result": map[string]interface{}{
+	"properties": map[string]any{
+		"result": map[string]any{
 			"type":        "string",
 			"description": "The response provided by the assistant.",
 		},
@@ -38,7 +38,7 @@ func extractGetRelevantLayers(userQuery string, previousConversations string, to
 	}
 	var input any
 	input = all_layersSlice
-	if input == nil {
+	if len(all_layersSlice) == 0 {
 		input = all_layers
 	}
 	// EXTRACT RELEVANT LAYERS FROM all_layers BASED ON userQuery
@@ -124,8 +124,8 @@ func handleGetUpdatesAboutDataLayers(userQuery string, previousConversations str
 		return nil, err
 	}
 	layerUpdatesInformation, err := toolRegistry.Execute(context.Background(), "get_layer_update_info", map[string]any{
-		"layer": strings.Join(relevantLayersNames, ","),
-		"platform":    platform,
+		"layer":    strings.Join(relevantLayersNames, ","),
+		"platform": platform,
 	})
 	instructions := AiManager.Instructions + fmt.Sprintf(`Using the information provided about the layers: %v, generate a comprehensive response to address the user's query.`, layerUpdatesInformation)
 	rawResponse, _, err := AiManager.GetAIResponse(instructions, userQuery, previousConversations, "", finalResponseSchema, "")

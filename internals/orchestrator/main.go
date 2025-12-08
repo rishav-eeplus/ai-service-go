@@ -173,11 +173,3 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 		Message: "Maximum clarification attempts reached. The response was generated with the available context.",
 	})
 }
-
-func extractIntentNames(intents []tools.Tool) []string {
-	var names []string
-	for _, tool := range intents {
-		names = append(names, tool.Name())
-	}
-	return names
-}
