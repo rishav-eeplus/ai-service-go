@@ -17,6 +17,7 @@ type Config struct {
 	QdrantHost     string
 	LayerInfoURL   string
 	AllLayersURL   string
+	SupportEmail   string
 }
 
 var AppConfig *Config
@@ -32,6 +33,7 @@ func LoadConfig() {
 		QdrantHost:     getEnvOrDefault("QDRANT_HOST", "qdrant"),
 		LayerInfoURL:   getEnvOrDefault("LAYER_INFORMATION_URL", ""),
 		AllLayersURL:   getEnvOrDefault("ALL_LAYERS_URL", ""),
+		SupportEmail:   getEnvOrDefault("SUPPORT_EMAIL", ""),
 	}
 	utils.Logger.Info("Config loaded successfully ✅")
 	AppConfig = &config

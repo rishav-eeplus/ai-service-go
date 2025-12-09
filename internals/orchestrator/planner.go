@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"ai-service-go/internals/tools"
+	"ai-service-go/internals/types"
 	"ai-service-go/internals/utils"
 	"context"
 	"encoding/json"
@@ -106,7 +107,7 @@ type PlannerOutput struct {
 	FollowUps            []string `json:"followUps"`
 }
 
-func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage) bool, input *ClientRequestType, model string, ctx context.Context, loopsRemaining int) (*PlannerOutput, error) {
+func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamMessage) bool, input *ClientRequestType, model string, ctx context.Context, loopsRemaining int) (*PlannerOutput, error) {
 	// Use context.Background() if ctx is nil
 	if ctx == nil {
 		ctx = context.Background()
@@ -140,14 +141,10 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage
 	}
 	maxNLoops := 8
 	count := 0
-	sendMessage(StreamMessage{
-		Type:    "info",
-		Message: "Starting planning and tool execution...",
-	})
 	for count < maxNLoops {
 		count++
 		// ReAct Step: Thinking/Reasoning phase
-		sendMessage(StreamMessage{
+		sendMessage(types.StreamMessage{
 			Type:    "info",
 			Message: fmt.Sprintf("Step %d: Analyzing and reasoning...", count),
 		})
@@ -171,10 +168,6 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage
 		// CASE 1: model wants to call a tool
 		if len(msg.ToolCalls) > 0 {
 			// ReAct Step: Action phase
-			sendMessage(StreamMessage{
-				Type:    "info",
-				Message: fmt.Sprintf("Action: Calling tool '%s'", msg.ToolCalls[0].Function.Name),
-			})
 
 			// Append the assistant's message with tool calls
 			messages = append(messages, msg)
@@ -189,19 +182,20 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage
 					utils.Logger.Errorf("Tool Planning and Execution failed - Failed to parse function args: %v", err)
 					return nil, fmt.Errorf("failed to parse function args: %w", err)
 				}
-
+				// send message that tool is being executed
+				sendMessage(types.StreamMessage{
+					Type:    "info",
+					Message: o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().Start,
+				})
 				// run the tool
-				result, err := o.ToolResistory.Execute(ctx, fn, params)
+				result, err := o.ToolResistory.Execute(ctx, fn, params, sendMessage)
 				if err != nil {
 					return nil, err
 				}
-
-				// ReAct Step: Observation phase
-				sendMessage(StreamMessage{
+				sendMessage(types.StreamMessage{
 					Type:    "info",
-					Message: fmt.Sprintf("Observation: Tool '%s' executed successfully", fn),
+					Message: o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().End,
 				})
-
 				// return tool result back to model as a tool response
 				resultBytes, _ := json.Marshal(result)
 				messages = append(messages, openai.ChatCompletionMessage{
@@ -214,9 +208,9 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage
 		}
 		// CASE 2: normal assistant message — final answer
 		if msg.Role == openai.ChatMessageRoleAssistant {
-			sendMessage(StreamMessage{
+			sendMessage(types.StreamMessage{
 				Type:    "success",
-				Message: "ReAct cycle complete: Final answer generated.",
+				Message: "Final answer generated.",
 			})
 			var output PlannerOutput
 			if err := json.Unmarshal([]byte(msg.Content), &output); err != nil {
@@ -228,7 +222,7 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage
 	}
 	if count == maxNLoops {
 		// Tool Planning and Execution failed
-		sendMessage(StreamMessage{
+		sendMessage(types.StreamMessage{
 			Type:    "error",
 			Message: "Tool Planning and Execution exceeded max loops, making final attempt without tool calls...",
 		})
@@ -242,7 +236,7 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg StreamMessage
 			return nil, err
 		}
 		if msg.Choices[0].Message.Role == openai.ChatMessageRoleAssistant {
-			sendMessage(StreamMessage{
+			sendMessage(types.StreamMessage{
 				Type:    "info",
 				Message: "Model provided final answer on last attempt without tool calls.",
 			})

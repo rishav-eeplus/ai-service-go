@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"ai-service-go/internals/types"
 	"context"
 	"fmt"
 	"strings"
@@ -30,14 +31,14 @@ func (gl *GetUserGuideInformation) Description() string {
 	return description
 }
 
-func (gl *GetUserGuideInformation) Execute(ctx context.Context, params map[string]any) (any, error) {
+func (gl *GetUserGuideInformation) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	query := params["query"].(string)
 	n_chunks := params["n_chunks"]
 	n_chunksInt, ok := n_chunks.(int)
 	if !ok && n_chunksInt <= 0 {
 		n_chunksInt = 2
 	}
-	
+
 	fmt.Printf("Executing GetUserGuideInformation with query: %s and n_chunks: %d\n", query, n_chunksInt)
 	return gl.VectorManager.SearchSimilarChunks(query, n_chunksInt, 0)
 }
@@ -60,6 +61,19 @@ func (gl *GetUserGuideInformation) Definition() openai.FunctionDefinition {
 			},
 			"required": []string{"query"},
 		},
+	}
+}
+
+func (gl *GetUserGuideInformation) InformationMessage() struct {
+	Start string
+	End   string
+} {
+	return struct {
+		Start string
+		End   string
+	}{
+		Start: `Reading from user guide...`,
+		End:   `User guide information retrieved.`,
 	}
 }
 

@@ -251,7 +251,7 @@ func (aiM *OpenAIManager) AskModelAndHandleTools(userQuery, previousConversation
 			}
 
 			// run the tool
-			result, err := registory.Execute(ctx, fn, params)
+			result, err := registory.Execute(ctx, fn, params, nil)
 			if err != nil {
 				return "", err
 			}

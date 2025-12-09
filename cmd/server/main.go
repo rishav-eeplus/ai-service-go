@@ -34,6 +34,7 @@ func main() {
 	toolRegistory.RegisterTool(&tools.GetUpdateInformation{})
 	toolRegistory.RegisterTool(&tools.GetAllAvailableLayers{})
 	toolRegistory.RegisterTool(&tools.LocateALayer{}) 
+	toolRegistory.RegisterTool(&tools.GetHelpSupport{})
 	// intialise orchestrator
 	orch := orchestrator.NewOrchestrator(controllers.AiManager, toolRegistory, &vector_db.VectorStoreManager)
 	// Create a new router

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"ai-service-go/internals/types"
 	"context"
 	"fmt"
 	"strings"
@@ -21,10 +22,13 @@ func (gu *GetUpdateInformation) Description() string {
 			Supports multiple comma-separated layers.`
 }
 
-func (gu *GetUpdateInformation) Execute(ctx context.Context, params map[string]any) (any, error) {
+func (gu *GetUpdateInformation) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	layers := strings.Split(params["layer"].(string), ",")
+	for i := range layers {
+		layers[i] = strings.TrimSpace(layers[i])
+		layers[i] = replaceSpaceAndMakeSmallCase(layers[i])
+	}
 	platform := params["platform"].(string)
-	fmt.Println("Input: layers - " + strings.Join(layers, ",") + " " + "platform:" + platform)
 	if len(layers) == 0 || platform == "" {
 		return "Update cycle : Not available, Available data till : Not available ", nil
 	}
@@ -70,6 +74,19 @@ func (gu *GetUpdateInformation) Definition() openai.FunctionDefinition {
 			},
 			"required": []string{"layer", "platform"},
 		},
+	}
+}
+
+func (gl *GetUpdateInformation) InformationMessage() struct{
+	Start string
+	End   string
+} {
+	return struct {
+		Start string
+		End   string
+	}{
+		Start: `Fetching layer update information...`,
+		End:   `Layer update information fetched.`,
 	}
 }
 

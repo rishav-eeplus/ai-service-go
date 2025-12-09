@@ -2,13 +2,14 @@ package orchestrator
 
 import (
 	"ai-service-go/internals/tools"
+	"ai-service-go/internals/types"
 	"encoding/json"
 	"fmt"
 	"strings"
 )
 
-func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *ClientRequestType) ([]tools.Tool, string, error) {
-	sendMessage(StreamMessage{
+func (o *Orchestrator) Router(sendMessage func(msg types.StreamMessage) bool, input *ClientRequestType) ([]tools.Tool, string, error) {
+	sendMessage(types.StreamMessage{
 		Type:    "info",
 		Message: "Identifying useful_tools...",
 	})
@@ -46,7 +47,7 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 	// Parse the response which should be a map with "useful_tools" key
 	responseMap, ok := (*rawResponse).(map[string]interface{})
 	if !ok {
-		sendMessage(StreamMessage{
+		sendMessage(types.StreamMessage{
 			Type:    "error",
 			Message: fmt.Sprintf("unexpected response type: %T", rawResponse),
 		})
@@ -55,7 +56,7 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 
 	usefulToolsArray, ok := responseMap["useful_tools"].([]interface{})
 	if !ok {
-		sendMessage(StreamMessage{
+		sendMessage(types.StreamMessage{
 			Type:    "error",
 			Message: fmt.Sprintf("unexpected useful_tools type: %T", responseMap["useful_tools"]),
 		})
@@ -80,7 +81,7 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 	}
 	matchedToolsJSON, err := json.Marshal(matchedTools)
 	if err != nil {
-		sendMessage(StreamMessage{
+		sendMessage(types.StreamMessage{
 			Type:    "error",
 			Message: fmt.Errorf("failed to marshal matched useful_tools: %v", err).Error(),
 		})
@@ -88,12 +89,12 @@ func (o *Orchestrator) Router(sendMessage func(msg StreamMessage) bool, input *C
 	}
 	reasoning, ok := responseMap["reasoning"].(string)
 	if !ok {
-		sendMessage(StreamMessage{
+		sendMessage(types.StreamMessage{
 			Type:    "warning",
 			Message: fmt.Sprintf("unexpected reasoning type: %T", responseMap["reasoning"]),
 		})
 	}
-	sendMessage(StreamMessage{
+	sendMessage(types.StreamMessage{
 		Type:    "info",
 		Data:    matchedToolsJSON,
 		Message: fmt.Sprintf("Identified tool(s) %s\n Reasoning: %s", strings.Join(response, ", "), reasoning),

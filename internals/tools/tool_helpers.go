@@ -11,6 +11,9 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func makeGetRequest[T any](ctx context.Context, url string) (*T, error) {
@@ -84,6 +87,19 @@ func getAllPaths() map[string]string {
 func replaceSpaceAndMakeSmallCase(str string) string {
 	return strings.ToLower(strings.ReplaceAll(str, " ", "_"))
 }
+func makeLayerLikeTitle(layerName string) string {
+	// extract iso if present
+	layerName = strings.ReplaceAll(layerName, "_", " ")
+	layerName = cases.Title(language.English).String(layerName)
+	iso := extractIso(layerName)
+	if iso != "" {
+		// After title casing, the iso will be title-cased (e.g., "Ercot"), so we need to replace that
+		titleCasedIso := cases.Title(language.English).String(iso)
+		layerName = strings.ReplaceAll(layerName, titleCasedIso, strings.ToUpper(iso))
+	}
+	return layerName
+}
+
 func recursivelyCheckPath(data dataType, depth int, paths []string, dict *map[string]string) {
 	paths = append(paths, data.Title)
 	// handle exceptions
@@ -130,7 +146,7 @@ func recursivelyCheckPath(data dataType, depth int, paths []string, dict *map[st
 func extractIso(layerName string) string {
 	isos := []string{"ercot", "miso", "pjm", "caiso", "nyiso", "spp", "iso-ne", "wecc", "serc"}
 	for _, iso := range isos {
-		if strings.HasPrefix(strings.ToLower(strings.ReplaceAll(layerName, " ", "_")), iso) {
+		if strings.HasPrefix(replaceSpaceAndMakeSmallCase(layerName), iso) {
 			return iso
 		}
 	}

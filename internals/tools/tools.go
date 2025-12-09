@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"ai-service-go/internals/types"
 	"context"
 	"fmt"
 
@@ -11,7 +12,11 @@ type Tool interface {
 	Name() string
 	Description() string
 	Definition() openai.FunctionDefinition
-	Execute(ctx context.Context, params map[string]any) (any, error)
+	Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error)
+	InformationMessage() struct {
+		Start string
+		End   string
+	}
 }
 
 type ToolRegistry struct {
@@ -28,12 +33,12 @@ func (r *ToolRegistry) RegisterTool(t Tool) {
 	r.tools[t.Name()] = t
 }
 
-func (r *ToolRegistry) Execute(ctx context.Context, name string, params map[string]any) (any, error) {
+func (r *ToolRegistry) Execute(ctx context.Context, name string, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	t, ok := r.tools[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
-	return t.Execute(ctx, params)
+	return t.Execute(ctx, params, sendMessage)
 }
 
 func (r *ToolRegistry) GetTool(name string) Tool {

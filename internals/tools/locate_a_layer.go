@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"ai-service-go/internals/types"
 	"context"
 	"fmt"
 	"strings"
@@ -48,14 +49,15 @@ func (gl *LocateALayer) Description() string {
 // 	return instructions, nil
 // }
 
-func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any) (any, error) {
+func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	relevantLayerMap, ok := params["relevant_layer"].(map[string]any)
 	if !ok {
 		fmt.Printf("Type assertion failed for relevant_layer: %v\n", params["relevant_layer"])
 		return "Please provide valid layer information.", nil
 	}
 	// Extract fields from the map
-	name, _ := relevantLayerMap["name"].(string)
+	name, _ := (relevantLayerMap["name"].(string))
+	name = replaceSpaceAndMakeSmallCase(name)
 	layerType, _ := relevantLayerMap["layer_type"].(string)
 	allLayerPaths := GetLayerPath()
 	layerPath := allLayerPaths[name]
@@ -117,6 +119,18 @@ func (gl *LocateALayer) Definition() openai.FunctionDefinition {
 			},
 			"required": []string{"relevant_layer"},
 		},
+	}
+}
+func (gl *LocateALayer) InformationMessage() struct {
+	Start string
+	End   string
+} {
+	return struct {
+		Start string
+		End   string
+	}{
+		Start: `Locating the layer on the platform...`,
+		End:   `Layer location instructions generated.`,
 	}
 }
 

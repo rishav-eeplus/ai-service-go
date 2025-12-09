@@ -2,7 +2,9 @@ package tools
 
 import (
 	"ai-service-go/internals/config"
+	"ai-service-go/internals/types"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -25,13 +27,26 @@ func (gl *GetLayerInformation) Description() string {
 	 		Supports multiple comma-separated layers in one call.`
 }
 
-func (gl *GetLayerInformation) Execute(ctx context.Context, params map[string]any) (any, error) {
+func (gl *GetLayerInformation) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	layerNames := strings.Split(params["layers"].(string), ",")
 	result := map[string]LayerInformation{}
 	var err error
 	var x *struct{ Data LayerInformation }
+	sendMessage(types.StreamMessage{
+		Type: "tool_request",
+		Data: func() json.RawMessage {
+			data, _ := json.Marshal(struct {
+				ToolName string         `json:"tool_name"`
+				Params   map[string]any `json:"params"`
+			}{
+				ToolName: gl.Name(),
+				Params:   params,
+			})
+			return data
+		}(),
+	})
 	for _, layerName := range layerNames {
-		layerName = formatLayerName(layerName)
+		layerName = replaceSpaceAndMakeSmallCase(layerName)
 		url := fmt.Sprintf("%s?name=%s", config.AppConfig.LayerInfoURL, layerName)
 		x, err = makeGetRequest[struct{ Data LayerInformation }](ctx, url)
 		if err != nil {
@@ -62,8 +77,15 @@ func (gl *GetLayerInformation) Definition() openai.FunctionDefinition {
 	}
 }
 
-func formatLayerName(layerName string) string {
-	layerName = strings.ReplaceAll(layerName, " ", "_")
-	layerName = strings.ToLower(layerName)
-	return layerName
+func (gl *GetLayerInformation) InformationMessage() struct{
+	Start string
+	End   string
+} {
+	return struct {
+		Start string
+		End   string
+	}{
+		Start: `Getting detailed information about the layer...`,
+		End:   `Detailed information about the layer retrieved.`,
+	}
 }

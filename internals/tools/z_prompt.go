@@ -47,6 +47,11 @@ var ToolUsageInstructions = `
 - **Use when:** Users need guidance on finding and enabling a specific layer in the UI.
 - **Requires:** Accurate layer name and type.
 
+### 6. get_help_support
+- **Purpose:** Provide users with support options and contact information.
+- **Use when:** Users seek assistance or have issues using the platform.
+- **Best for:** Directing users to support channels.
+
 ## Best Practices
 - Validate tool relevance before invocation.
 - Limit to a maximum of 3 tool calls per conversation.

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	// "ai-service-go/internals/tools"
 	"ai-service-go/internals/tools"
 	"context"
 	"fmt"
@@ -28,7 +29,7 @@ var finalResponseSchema = map[string]any{
 }
 
 func extractGetRelevantLayers(userQuery string, previousConversations string, toolRegistry *tools.ToolRegistry) ([]tools.AvailableLayersData, error) {
-	all_layers, err := toolRegistry.Execute(context.Background(), "get_all_available_layers", map[string]any{})
+	all_layers, err := toolRegistry.Execute(context.Background(), "get_all_available_layers", map[string]any{}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +106,7 @@ func handleGetInformationAboutALayer(userQuery string, previousConversations str
 	}
 	layersInformation, err := toolRegistry.Execute(context.Background(), "get_layer_info", map[string]any{
 		"layers": strings.Join(relevantLayersNames, ","),
-	})
+	}, nil)
 	instructions := AiManager.Instructions + fmt.Sprintf(`Using the information provided about the layers: %v, generate a comprehensive response to address the user's query.`, layersInformation)
 	if len(relevantLayers) > 1 {
 		instructions += fmt.Sprintf(`Inform users that these layers were also extracted based on query %v, but only %s was used`, relevantLayers[1:], relevantLayers[0])
@@ -126,7 +127,7 @@ func handleGetUpdatesAboutDataLayers(userQuery string, previousConversations str
 	layerUpdatesInformation, err := toolRegistry.Execute(context.Background(), "get_layer_update_info", map[string]any{
 		"layer":    strings.Join(relevantLayersNames, ","),
 		"platform": platform,
-	})
+	},nil)
 	instructions := AiManager.Instructions + fmt.Sprintf(`Using the information provided about the layers: %v, generate a comprehensive response to address the user's query.`, layerUpdatesInformation)
 	rawResponse, _, err := AiManager.GetAIResponse(instructions, userQuery, previousConversations, "", finalResponseSchema, "")
 	return rawResponse, nil
@@ -134,7 +135,7 @@ func handleGetUpdatesAboutDataLayers(userQuery string, previousConversations str
 
 func handleAvailableLayersInPlatform(userQuery string, previousConversations string, toolRegistry *tools.ToolRegistry) (any, error) {
 	// Implementation for handling "available_layers_in_platform" intent
-	all_layers, err := toolRegistry.Execute(context.Background(), "get_all_available_layers", map[string]any{})
+	all_layers, err := toolRegistry.Execute(context.Background(), "get_all_available_layers", map[string]any{}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +167,7 @@ func handleHowToUseATool(userQuery string, previousConversations string, toolReg
 	// Implementation for handling "how_to_use_a_tool" intent
 	extractedChunks, err := toolRegistry.Execute(context.Background(), "get_user_guide_info", map[string]any{
 		"query": userQuery,
-	})
+	}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +180,7 @@ func handleGeneralPlatformQuery(userQuery string, previousConversations string, 
 	// Implementation for handling "general_platform_query" intent
 	extractedChunks, err := toolRegistry.Execute(context.Background(), "get_user_guide_info", map[string]any{
 		"query": userQuery,
-	})
+	}, nil)
 	if err != nil {
 		return nil, err
 	}

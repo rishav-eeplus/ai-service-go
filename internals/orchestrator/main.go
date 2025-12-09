@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"ai-service-go/internals/controllers"
 	"ai-service-go/internals/tools"
+	"ai-service-go/internals/types"
 	"ai-service-go/internals/utils"
 	"ai-service-go/internals/vector_db"
 	"context"
@@ -27,24 +28,21 @@ func NewOrchestrator(aiManager controllers.OpenAIManager, toolRegistry *tools.To
 	}
 }
 
-// StreamMessage represents messages sent via WebSocket
-type StreamMessage struct {
-	Type    string          `json:"type"`
-	Data    json.RawMessage `json:"data,omitempty"`
-	Message string          `json:"message,omitempty"`
-	Options []string        `json:"options,omitempty"` // For clarification options
-}
 
 type ClientRequestType struct {
 	UserQuery             string
 	PreviousConversation  string
 	Platform              string
 	ClarificationResponse string // User's response to a clarification request
+	ClientToolRun         struct {
+		ToolName string
+		Params   map[string]any
+	}
 }
 
 func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model string) {
 
-	sendMessage := func(msg StreamMessage) bool {
+	sendMessage := func(msg types.StreamMessage) bool {
 		if err := conn.WriteJSON(msg); err != nil {
 			utils.Logger.Errorf("Error writing to WebSocket: %v", err)
 			return false
@@ -65,42 +63,20 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 			utils.Logger.Errorf("Error reading clarification response: %v", err)
 			return "", err
 		}
-
 		// Reset deadline back to normal
 		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
 		return response.Response, nil
 	}
 
-	// useful_tools, reasoning, err := o.Router(sendMessage, input)
-	// if err != nil {
-	// 	utils.Logger.Errorf("Router error: %v", err)
-	// 	sendMessage(StreamMessage{
-	// 		Type:    "error",
-	// 		Message: fmt.Sprintf("Failed to identify intents: %v", err),
-	// 	})
-	// 	return
-	// }
-
-	// Step 2: Retrieval
-	// retrievedContext, err := o.Retreiver(sendMessage, context.Background(), input, extractIntentNames(identifiedIntents))
-	// if err != nil {
-	// 	utils.Logger.Errorf("Retriever error: %v", err)
-	// 	sendMessage(StreamMessage{
-	// 		Type:    "error",
-	// 		Message: fmt.Sprintf("Failed to retrieve context: %v", err),
-	// 	})
-	// 	return
-	// }
-
 	// Loop to handle clarification requests
 	maxClarificationLoops := 3
-	for i := 0; i < maxClarificationLoops; i++ {
+	for i := range maxClarificationLoops {
 		// Step 3: Planning and Tool Execution
 		planOutput, err := o.PlannerAndToolExecuter(sendMessage, input, model, context.Background(), maxClarificationLoops-i)
 		if err != nil {
 			utils.Logger.Errorf("Planner error: %v", err)
-			sendMessage(StreamMessage{
+			sendMessage(types.StreamMessage{
 				Type:    "error",
 				Message: fmt.Sprintf("Failed to generate response: %v", err),
 			})
@@ -110,7 +86,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 		// Check if clarification is needed
 		if planOutput.NeedsClarification && len(planOutput.Options) > 0 {
 			// Send clarification request to client
-			if !sendMessage(StreamMessage{
+			if !sendMessage(types.StreamMessage{
 				Type:    "clarification",
 				Message: planOutput.ClarificationMessage,
 				Options: planOutput.Options,
@@ -122,7 +98,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 			userResponse, err := waitForUserResponse()
 			if err != nil {
 				utils.Logger.Errorf("Error waiting for user clarification: %v", err)
-				sendMessage(StreamMessage{
+				sendMessage(types.StreamMessage{
 					Type:    "error",
 					Message: "Failed to receive your selection. Please try again.",
 				})
@@ -132,7 +108,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 			// Update input with user's clarification response and continue the loop
 			input.UserQuery = fmt.Sprintf("%s. User selected: %s", input.UserQuery, userResponse)
 			input.ClarificationResponse = userResponse
-			sendMessage(StreamMessage{
+			sendMessage(types.StreamMessage{
 				Type:    "info",
 				Message: fmt.Sprintf("Processing your selection: %s", userResponse),
 			})
@@ -143,7 +119,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 		planOutputJSON, err := json.Marshal(planOutput)
 		if err != nil {
 			utils.Logger.Errorf("Error marshalling plan output: %v", err)
-			sendMessage(StreamMessage{
+			sendMessage(types.StreamMessage{
 				Type:    "error",
 				Message: fmt.Sprintf("Failed to process response: %v", err),
 			})
@@ -151,7 +127,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 		}
 
 		// Final Output
-		if !sendMessage(StreamMessage{
+		if !sendMessage(types.StreamMessage{
 			Type:    "response",
 			Data:    planOutputJSON,
 			Message: "Response generated successfully",
@@ -160,7 +136,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 		}
 
 		// Send completion
-		sendMessage(StreamMessage{
+		sendMessage(types.StreamMessage{
 			Type:    "complete",
 			Message: "Processing complete",
 		})
@@ -168,7 +144,7 @@ func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model
 	}
 
 	// If we've exceeded max clarification loops (this should rarely happen now since last loop forces a response)
-	sendMessage(StreamMessage{
+	sendMessage(types.StreamMessage{
 		Type:    "warning",
 		Message: "Maximum clarification attempts reached. The response was generated with the available context.",
 	})

@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"ai-service-go/internals/types"
 	"ai-service-go/internals/utils"
 	"context"
 	"fmt"
@@ -9,8 +10,8 @@ import (
 
 // Retreiver is responsible for checking any relevant chunks available in our data source to make some context available for the LLM.
 
-func (o *Orchestrator) Retreiver(sendMessage func(msg StreamMessage) bool, ctx context.Context, input *ClientRequestType, intents []string) (string, error) {
-	sendMessage(StreamMessage{
+func (o *Orchestrator) Retreiver(sendMessage func(msg types.StreamMessage) bool, ctx context.Context, input *ClientRequestType, intents []string) (string, error) {
+	sendMessage(types.StreamMessage{
 		Type:    "info",
 		Message: "Retrieving relevant context from vector store...",
 	})
@@ -100,7 +101,7 @@ func (o *Orchestrator) Retreiver(sendMessage func(msg StreamMessage) bool, ctx c
 	contextForPlanning := "User Query: " + input.UserQuery + "\n"
 	contextForPlanning += "Previous Conversations: " + input.PreviousConversation + "\n"
 	// contextForPlanning += "Relevant information from vector store:"
-	sendMessage(StreamMessage{
+	sendMessage(types.StreamMessage{
 		Type:    "info",
 		Message: "Retrieved relevant context from vector store. Got " + fmt.Sprintf("%d", len(relevantVectorContents)) + " relevant chunks.",
 	})

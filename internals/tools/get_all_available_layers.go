@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"ai-service-go/internals/types"
 	"context"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -23,11 +24,16 @@ func (gl *GetAllAvailableLayers) Description() string {
 	return `Returns complete list of all available data layers with their names, descriptions, and types.`
 }
 
-func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]any) (any, error) {
+func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	if len(AllAvailableLayers) > 0 {
-		return AllAvailableLayers, nil
+		formattedLayers := []AvailableLayersData{}
+		for _, layer := range AllAvailableLayers {
+			layer.Name = makeLayerLikeTitle(layer.Name)
+			formattedLayers = append(formattedLayers, layer)
+		}
+		return formattedLayers, nil
 	}
-	layers , err := getAllAvailableLayers(ctx)
+	layers, err := getAllAvailableLayers(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +46,12 @@ func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]
 		}
 	}
 	AllAvailableLayers = filteredLayers
-	return AllAvailableLayers, nil
+	formattedLayers := []AvailableLayersData{}
+	for _, layer := range AllAvailableLayers {
+		layer.Name = makeLayerLikeTitle(layer.Name)
+		formattedLayers = append(formattedLayers, layer)
+	}
+	return formattedLayers, nil
 }
 
 func (gl *GetAllAvailableLayers) Definition() openai.FunctionDefinition {
@@ -48,5 +59,18 @@ func (gl *GetAllAvailableLayers) Definition() openai.FunctionDefinition {
 		Name:        gl.Name(),
 		Description: gl.Description(),
 		Parameters:  nil,
+	}
+}
+
+func (gl *GetAllAvailableLayers) InformationMessage() struct {
+	Start string
+	End   string
+} {
+	return struct {
+		Start string
+		End   string
+	}{
+		Start: `Fetching all available layers...`,
+		End:   `All layers fetched.`,
 	}
 }
