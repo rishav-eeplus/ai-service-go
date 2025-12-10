@@ -164,6 +164,9 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 		if err != nil {
 			return nil, err
 		}
+		// Log token usage
+		utils.Logger.Infof("Token usage - Prompt: %d, Completion: %d, Total: %d",
+			resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
 		msg := resp.Choices[0].Message
 		// CASE 1: model wants to call a tool
 		if len(msg.ToolCalls) > 0 {
@@ -235,6 +238,9 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 			utils.Logger.Errorf("Tool Planning and Execution failed  - Final attempt without tool calls failed: %v", err)
 			return nil, err
 		}
+		// Log token usage for final attempt
+		utils.Logger.Infof("Token usage (final attempt) - Prompt: %d, Completion: %d, Total: %d",
+			msg.Usage.PromptTokens, msg.Usage.CompletionTokens, msg.Usage.TotalTokens)
 		if msg.Choices[0].Message.Role == openai.ChatMessageRoleAssistant {
 			sendMessage(types.StreamMessage{
 				Type:    "info",

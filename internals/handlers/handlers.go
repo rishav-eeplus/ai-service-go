@@ -296,7 +296,6 @@ func (h *Handler) HandleWebSocketQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() {
-		utils.Logger.Info("Closing WebSocket connection")
 		conn.Close()
 	}()
 

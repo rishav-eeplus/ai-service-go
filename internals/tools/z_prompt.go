@@ -26,10 +26,13 @@ var ToolUsageInstructions = `
 - **Best for:** Initial discovery and capability exploration.
 
 ### 2. get_layer_info
-- **Purpose:** Retrieve detailed metadata about specific layers.
-- **Use only when:** Users need in-depth information (schema, attributes, coverage) for a certain layer.
-- **Required** : Exact layer name.
+- **Purpose:** Retrieve detailed properties about specific layers. This tool always opens a layer information popup for the user.
+- **Use only when:** Users need in-depth information (detailed attributes available) for a certain layer.
+- **Required:** Exact layer name and isOpeningPopupEnough boolean.
 - **Note:** Accepts comma-separated layer names for batch queries.
+- **isOpeningPopupEnough parameter:**
+  - Set to **true** if opening the popup is sufficient (the popup contains all layer details). Inform the user that the layer information popup has been opened.
+  - Set to **false** only if you need the raw layer data to process, compare, or include in your response even after the popup has been opened.
 
 ### 3. get_layer_update_info
 - **Purpose:** Check update schedules and data freshness.
@@ -46,6 +49,9 @@ var ToolUsageInstructions = `
 - **Purpose:** Provide step-by-step navigation instructions for getting a specific layer.
 - **Use when:** Users need guidance on finding and enabling a specific layer in the UI.
 - **Requires:** Accurate layer name and type.
+- **open_layer_in_ui parameter:**
+  - Set to **true** to attempt opening the layer directly in the UI. If the layer is not visible after the attempt, fallback instructions will be provided.
+  - Set to **false** (or omit) to only provide manual step-by-step instructions without attempting to open the layer.
 
 ### 6. get_help_support
 - **Purpose:** Provide users with support options and contact information.

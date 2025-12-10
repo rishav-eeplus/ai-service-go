@@ -3,6 +3,7 @@ package tools
 import (
 	"ai-service-go/internals/types"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -55,13 +56,40 @@ func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any, send
 		fmt.Printf("Type assertion failed for relevant_layer: %v\n", params["relevant_layer"])
 		return "Please provide valid layer information.", nil
 	}
+	openLayerInUI, _ := params["open_layer_in_ui"].(bool)
+	fmt.Printf("Open layer in Map: %t", openLayerInUI)
+
 	// Extract fields from the map
 	name, _ := (relevantLayerMap["name"].(string))
 	name = replaceSpaceAndMakeSmallCase(name)
 	layerType, _ := relevantLayerMap["layer_type"].(string)
 	allLayerPaths := GetLayerPath()
 	layerPath := allLayerPaths[name]
-	instructions := "To find and enable the layer on the platform, follow these steps:\n\n"
+	if openLayerInUI {
+		sendMessage(types.StreamMessage{
+			Type: "tool_request",
+			Data: func() json.RawMessage {
+				data, _ := json.Marshal(struct {
+					ToolName string         `json:"tool_name"`
+					Params   map[string]any `json:"params"`
+				}{
+					ToolName: gl.Name(),
+					Params: map[string]any{
+						"relevant_layer": name,
+						"path":           layerPath,
+					},
+				})
+				return data
+			}(),
+		})
+	}
+
+	var instructions string
+	if openLayerInUI {
+		instructions = "The layer has been attempted to open in the UI. If it is not visible, follow these steps to find and enable it manually:\n\n"
+	} else {
+		instructions = "To find and enable the layer on the platform, follow these steps:\n\n"
+	}
 	// Step 1: ISO selection
 	instructions += "1. **Select the ISO/Region**: The platform has an ISO selector in the top middle section of the screen (in the navigation bar). "
 	switch layerType {
@@ -88,6 +116,7 @@ func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any, send
 	instructions += "4. **Enable the Layer**: Once you locate the layer, click the toggle button next to it to enable the layer on the map."
 
 	return instructions, nil
+
 }
 
 func (gl *LocateALayer) Definition() openai.FunctionDefinition {
@@ -115,6 +144,10 @@ func (gl *LocateALayer) Definition() openai.FunctionDefinition {
 						},
 					},
 					"required": []string{"name", "layer_information", "layer_type"},
+				},
+				"open_layer_in_ui": map[string]any{
+					"type":        "boolean",
+					"description": "If true, attempts to open the layer directly in the UI. If the layer is not visible after attempting, manual instructions will be provided as fallback.",
 				},
 			},
 			"required": []string{"relevant_layer"},

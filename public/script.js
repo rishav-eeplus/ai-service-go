@@ -1,3 +1,4 @@
+const endpoint = 'ai-service-go';
 const form = document.getElementById('queryForm');
 const submitBtn = document.getElementById('submitBtn');
 const responseContent = document.getElementById('responseContent');
@@ -14,10 +15,18 @@ let currentWebSocket = null;
 // Conversation history tracking
 let conversationHistory = [];
 
+// Helper function to get the base path from current URL
+function getBasePath() {
+    // Remove trailing filename and /ui suffix to get the API base path
+    let path = window.location.pathname.replace(/\/[^\/]*$/, ''); // Remove filename
+    path = path.replace(/\/ui$/, ''); // Remove /ui suffix
+    return path || `/${endpoint}`;
+}
+
 // Check API status
 async function checkApiStatus() {
     try {
-        const response = await fetch('/status');
+        const response = await fetch(`${getBasePath()}/status`);
         if (response.ok) {
             statusIndicator.classList.add('online');
             statusText.textContent = 'API Online';
@@ -102,7 +111,7 @@ function connectWebSocket(query, platform, model, previousConversation) {
 
     // Determine protocol (ws or wss based on current page protocol)
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/query`;
+    const wsUrl = `${protocol}//${window.location.host}${getBasePath()}/ws/query`;
 
     currentWebSocket = new WebSocket(wsUrl);
 
@@ -288,7 +297,7 @@ form.addEventListener('submit', async (e) => {
                 }
             }
 
-            const response = await fetch(`/handle-query-${apiVersion}?platform=${encodeURIComponent(platform)}`, {
+            const response = await fetch(`${getBasePath()}/handle-query-${apiVersion}?platform=${encodeURIComponent(platform)}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

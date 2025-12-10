@@ -282,8 +282,6 @@ func (vs *VectorStore) GetAllVectorsWithMetadata() ([]map[string]interface{}, er
 
 		results = append(results, result)
 	}
-
-	utils.Logger.Infof("Retrieved %d vectors with metadata", len(results))
 	return results, nil
 }
 
