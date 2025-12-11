@@ -1,4 +1,3 @@
-const endpoint = 'ai-service-go';
 const form = document.getElementById('queryForm');
 const submitBtn = document.getElementById('submitBtn');
 const responseContent = document.getElementById('responseContent');
@@ -20,7 +19,7 @@ function getBasePath() {
     // Remove trailing filename and /ui suffix to get the API base path
     let path = window.location.pathname.replace(/\/[^\/]*$/, ''); // Remove filename
     path = path.replace(/\/ui$/, ''); // Remove /ui suffix
-    return path || `/${endpoint}`;
+    return path;
 }
 
 // Check API status

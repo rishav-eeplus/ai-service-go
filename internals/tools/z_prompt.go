@@ -14,7 +14,7 @@ var ToolUsageInstructions = `
 
 ## General Principles
 - Only invoke tools when they directly address the user's needs.
-- Tools requiring layer names (get_layer_info, get_layer_update_info, locate_a_layer) need exact matches—use get_all_available_layers first to validate layer names.
+- Tools requiring layer names (get_layer_info, get_layer_update_info, locate_a_layer) need exact matches—use get_all_available_layers with onlyNames true to first to validate layer names.
 - Prioritize get_user_guide_info for general platform questions.
 
 ## Tool-Specific Guidelines
@@ -24,6 +24,9 @@ var ToolUsageInstructions = `
 - **Use when:** Users want to know what layers exist, especially for a specific ISO or region.
 - **Note:** Returns layer names with brief descriptions—helpful for recommending relevant layers.
 - **Best for:** Initial discovery and capability exploration.
+- **onlyNames parameter:**
+  - Set to **true** to get only the layer names without descriptions (lighter response, useful for quick lookups or when you just need to validate layer names).
+  - Set to **false** (or omit) to get full layer data including names, descriptions, and types.
 
 ### 2. get_layer_info
 - **Purpose:** Retrieve detailed properties about specific layers. This tool always opens a layer information popup for the user.

@@ -22,7 +22,7 @@ func (gl *LocateALayer) Name() string {
 	return "locate_a_layer"
 }
 func (gl *LocateALayer) Description() string {
-	return `Provides step-by-step UI navigation instructions to get or find and enable a specific layer on the platform. Generates instructions based on layer type.`
+	return `Provides step-by-step UI navigation instructions to open, turn on, get or find and enable a specific layer on the platform. Generates instructions based on layer type.`
 }
 
 // func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any) (any, error) {
@@ -57,7 +57,7 @@ func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any, send
 		return "Please provide valid layer information.", nil
 	}
 	openLayerInUI, _ := params["open_layer_in_ui"].(bool)
-	fmt.Printf("Open layer in Map: %t", openLayerInUI)
+	openLayerInUI = false
 
 	// Extract fields from the map
 	name, _ := (relevantLayerMap["name"].(string))

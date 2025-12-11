@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	// "strings"
 
@@ -25,18 +26,11 @@ var ReActSystemPrompt = fmt.Sprintf(`You are Anna, a female assistant for EEHORI
 		Continue this cycle until you have enough information.		
 		# Tool Usage Guidelines: %s
 		
-		## YOUR CAPABILITIES (IMPORTANT - READ CAREFULLY)
-		You are an INFORMATIONAL assistant only. You can ONLY:
-		- Answer questions about layers, their properties, and metadata
-		- Provide information about platform features and how to use them
-		- Explain what data is available and how to find it
-		- Guide users on how THEY can perform actions on the platform
-		- Retrieve and share layer information, update schedules, and user guide content
-		
+		## RESTRICTIONS (IMPORTANT - READ CAREFULLY)
 		You CANNOT and must NEVER claim to do actions on behalf of the user or the platform, or any actions outside 
 		 the scope of your capabilities.
 		
-		# Constraints
+		## Constraints
 		- Be interactive and engaging while assisting users.
 		- If a user greets you like Hi Anna or Hello Anna, simply respond with a polite greeting.
         - If a query falls outside the scope of EEHORIZON, politely apologize, acknowledging the impossibility of helping in a creative way.
@@ -47,50 +41,51 @@ var ReActSystemPrompt = fmt.Sprintf(`You are Anna, a female assistant for EEHORI
 		- If the user's query is vague or could mean multiple things, ask for clarification.
 		- If you need more specific information to proceed, ask for it.
 		- When asking for clarification, provide clear options for the user to choose from.
-		- Maximum 5 options should be presented to the user.
+		- 4-5 options are preffered, but if required not more than 8 options should be presented to the user.
 
 		## Final Output Rules
 		- Your final response must ONLY contain the direct answer to the user's question.
 		- Do NOT include your internal reasoning process (Thought/Action/Observation) in the final output.
 		- Do NOT explain what tools you used or how you arrived at the answer.
 		- Write as if you're speaking directly to the user—concise, helpful, and to the point.
+		- Write clean markdown content. 
 		- The "result" field should contain ONLY the answer the user needs, nothing else.
 		# Output Format
         - Return all responses in JSON format.
         - **result**: Your response.
         - **needsClarification**: Boolean - Set to true ONLY when you need the user to choose from options or provide more information.
         - **clarificationMessage**: String - The question you want to ask the user (only when needsClarification is true).
-        - **options**: Array of strings - The options for the user to choose from (only when needsClarification is true, max 5 options).
+        - **options**: Array of strings - The options for the user to choose from (only when needsClarification is true, usual 4-5, max 8 options).
         - **followUps**: An array of questions(maximum 2) formatted as if the user is asking them to the assistant,  
 		   also answered using the available tools and user guide data. Leave empty if needsClarification is true.
 `, tools.ToolUsageInstructions)
 
-var FinalOutputSchema = map[string]interface{}{
+var FinalOutputSchema = map[string]any{
 	"type": "object",
-	"properties": map[string]interface{}{
-		"result": map[string]interface{}{
+	"properties": map[string]any{
+		"result": map[string]any{
 			"type":        "string",
 			"description": "The response provided by the assistant.",
 		},
-		"needsClarification": map[string]interface{}{
+		"needsClarification": map[string]any{
 			"type":        "boolean",
 			"description": "Set to true when the assistant needs the user to choose from options or provide more information.",
 		},
-		"clarificationMessage": map[string]interface{}{
+		"clarificationMessage": map[string]any{
 			"type":        "string",
 			"description": "The question to ask the user when clarification is needed.",
 		},
-		"options": map[string]interface{}{
+		"options": map[string]any{
 			"type":        "array",
-			"description": "Options for the user to choose from when clarification is needed. Maximum 5 options.",
-			"items": map[string]interface{}{
+			"description": "Options for the user to choose from when clarification is needed. Maximum 8 options.",
+			"items": map[string]any{
 				"type": "string",
 			},
 		},
-		"followUps": map[string]interface{}{
+		"followUps": map[string]any{
 			"type":        "array",
 			"description": "An array of follow-up questions for further engagement with the user. The question should be such that it can be future questions asked by the user to get more clarity on their requirements.",
-			"items": map[string]interface{}{
+			"items": map[string]any{
 				"type": "string",
 			},
 		},
@@ -141,13 +136,29 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 	}
 	maxNLoops := 8
 	count := 0
+
+	// Create progress ticker for dynamic messages during long waits
+	progressTicker := NewProgressTicker()
+
 	for count < maxNLoops {
 		count++
 		// ReAct Step: Thinking/Reasoning phase
-		sendMessage(types.StreamMessage{
-			Type:    "info",
-			Message: fmt.Sprintf("Step %d: Analyzing and reasoning...", count),
-		})
+		// Send witty thinking message based on the step
+		if count == 1 {
+			sendMessage(types.StreamMessage{
+				Type:    "info",
+				Message: GetThinkingMessage(),
+			})
+		} else {
+			// For subsequent steps, show multi-step progress
+			sendMessage(types.StreamMessage{
+				Type:    "info",
+				Message: GetMultiStepMessage(),
+			})
+		}
+
+		// Start progress ticker for AI completion (sends messages every 4 seconds)
+		progressTicker.Start(ctx, sendMessage, 4*time.Second)
 		resp, err := o.AIManager.OpenAI.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 			Model:    model,
 			Messages: messages,
@@ -161,6 +172,10 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 				},
 			},
 		})
+
+		// Stop the progress ticker after AI completion
+		progressTicker.Stop()
+
 		if err != nil {
 			return nil, err
 		}
@@ -185,19 +200,35 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 					utils.Logger.Errorf("Tool Planning and Execution failed - Failed to parse function args: %v", err)
 					return nil, fmt.Errorf("failed to parse function args: %w", err)
 				}
-				// send message that tool is being executed
+				// send witty message that tool is being executed
+				wittyToolStart := GetToolStartMessage(fn, o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().Start)
 				sendMessage(types.StreamMessage{
 					Type:    "info",
-					Message: o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().Start,
+					Message: wittyToolStart,
 				})
+
+				// Start progress ticker for tool execution
+				progressTicker.Start(ctx, sendMessage, 3*time.Second)
+
 				// run the tool
 				result, err := o.ToolResistory.Execute(ctx, fn, params, sendMessage)
+
+				// Stop the progress ticker after tool execution
+				progressTicker.Stop()
+
 				if err != nil {
+					// Send error recovery message
+					sendMessage(types.StreamMessage{
+						Type:    "info",
+						Message: GetErrorRecoveryMessage(),
+					})
 					return nil, err
 				}
+				// send witty completion message
+				wittyToolEnd := GetToolEndMessage(fn, o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().End)
 				sendMessage(types.StreamMessage{
 					Type:    "info",
-					Message: o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().End,
+					Message: wittyToolEnd,
 				})
 				// return tool result back to model as a tool response
 				resultBytes, _ := json.Marshal(result)
@@ -213,7 +244,7 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 		if msg.Role == openai.ChatMessageRoleAssistant {
 			sendMessage(types.StreamMessage{
 				Type:    "success",
-				Message: "Final answer generated.",
+				Message: GetFinalAnswerMessage(),
 			})
 			var output PlannerOutput
 			if err := json.Unmarshal([]byte(msg.Content), &output); err != nil {
@@ -226,8 +257,8 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 	if count == maxNLoops {
 		// Tool Planning and Execution failed
 		sendMessage(types.StreamMessage{
-			Type:    "error",
-			Message: "Tool Planning and Execution exceeded max loops, making final attempt without tool calls...",
+			Type:    "info",
+			Message: "🔧 Taking a bit longer than expected... let me wrap this up!",
 		})
 		// get one last try without tool calls
 		msg, err := o.AIManager.OpenAI.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
@@ -243,8 +274,8 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 			msg.Usage.PromptTokens, msg.Usage.CompletionTokens, msg.Usage.TotalTokens)
 		if msg.Choices[0].Message.Role == openai.ChatMessageRoleAssistant {
 			sendMessage(types.StreamMessage{
-				Type:    "info",
-				Message: "Model provided final answer on last attempt without tool calls.",
+				Type:    "success",
+				Message: "💪 Got there in the end! Here's your answer...",
 			})
 			var output PlannerOutput
 			if err := json.Unmarshal([]byte(msg.Choices[0].Message.Content), &output); err != nil {

@@ -99,7 +99,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) TempHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	data := tools.GetLayerPath()
+	data, _ := h.ToolRegistry.Execute(r.Context(), "get_all_available_layers", nil, nil)
 	SendSuccessResponse(w, 200, "Temp Handler", map[string]interface{}{
 		"message": "Got the data",
 		"data":    data,

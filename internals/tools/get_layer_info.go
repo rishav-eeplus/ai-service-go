@@ -35,8 +35,6 @@ func (gl *GetLayerInformation) Execute(ctx context.Context, params map[string]an
 	if val, ok := params["isOpeningPopupEnough"].(bool); ok {
 		isOpeningPopupEnough = val
 	}
-	fmt.Println(params)
-	fmt.Printf(`Opening popup is enough: %t`, isOpeningPopupEnough)
 
 	result := map[string]LayerInformation{}
 	var err error

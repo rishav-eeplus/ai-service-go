@@ -14,7 +14,7 @@ type GetAllAvailableLayers struct{}
 type AvailableLayersData struct {
 	Name             string `json:"name"`
 	LayerInformation string `json:"layer_information"`
-	LayerType        string `json:"layer_type"`
+	LayerType        string `json:"layer_group"`
 }
 
 func (gl *GetAllAvailableLayers) Name() string {
@@ -25,7 +25,18 @@ func (gl *GetAllAvailableLayers) Description() string {
 }
 
 func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
+	onlyNames := false
+	if val, ok := params["onlyNames"].(bool); ok {
+		onlyNames = val
+	}
 	if len(AllAvailableLayers) > 0 {
+		if onlyNames {
+			names := []string{}
+			for _, layer := range AllAvailableLayers {
+				names = append(names, makeLayerLikeTitle(layer.Name))
+			}
+			return names, nil
+		}
 		formattedLayers := []AvailableLayersData{}
 		for _, layer := range AllAvailableLayers {
 			layer.Name = makeLayerLikeTitle(layer.Name)
@@ -46,6 +57,14 @@ func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]
 		}
 	}
 	AllAvailableLayers = filteredLayers
+	if onlyNames {
+		names := []string{}
+		for _, layer := range AllAvailableLayers {
+			names = append(names, makeLayerLikeTitle(layer.Name))
+		}
+		return names, nil
+	}
+
 	formattedLayers := []AvailableLayersData{}
 	for _, layer := range AllAvailableLayers {
 		layer.Name = makeLayerLikeTitle(layer.Name)
@@ -58,7 +77,16 @@ func (gl *GetAllAvailableLayers) Definition() openai.FunctionDefinition {
 	return openai.FunctionDefinition{
 		Name:        gl.Name(),
 		Description: gl.Description(),
-		Parameters:  nil,
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"onlyNames": map[string]any{
+					"type":        "boolean",
+					"description": "If true, returns only the layer names without descriptions. Defaults to false.",
+				},
+			},
+			"required": []string{},
+		},
 	}
 }
 

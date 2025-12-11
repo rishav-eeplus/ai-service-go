@@ -9,12 +9,15 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
+
+var isos []string = []string{"ercot", "miso", "pjm", "caiso", "nyiso", "spp", "iso-ne", "wecc", "serc"}
 
 func makeGetRequest[T any](ctx context.Context, url string) (*T, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -59,8 +62,51 @@ func getAllAvailableLayers(ctx context.Context) ([]AvailableLayersData, error) {
 			filteredLayers = append(filteredLayers, layer)
 		}
 	}
+	filteredLayers = layerDefinitionHelper(filteredLayers)
 	AllAvailableLayers = filteredLayers
 	return AllAvailableLayers, nil
+}
+
+func layerDefinitionHelper(allLayers []AvailableLayersData) []AvailableLayersData {
+	isoLayerTypes := map[string]struct {
+		MainLayerName string
+		Definition    string
+		Count         int
+	}{}
+	sort.Slice(allLayers, func(i, j int) bool {
+		return allLayers[i].LayerType < allLayers[j].LayerType
+	})
+	for _, layer := range allLayers {
+		currName := layer.Name
+		if extractIso(currName) != "" {
+			layerType := strings.ReplaceAll(currName, extractIso(currName)+"_", "")
+			layerData := isoLayerTypes[layerType]
+			layerData.Count += 1
+			layerData.MainLayerName = currName
+			layerData.Definition = layer.LayerInformation
+			isoLayerTypes[layerType] = layerData
+		}
+	}
+	modifiedLayers := []AvailableLayersData{}
+	for _, layer := range allLayers {
+		currModifiedLayer := layer
+		currName := layer.Name
+		if extractIso(currName) != "" {
+			layerType := strings.ReplaceAll(currName, extractIso(currName)+"_", "")
+			x := isoLayerTypes[layerType]
+			if x.MainLayerName != currName && x.Count > 2 {
+				currModifiedLayer.LayerInformation = `Check ` + makeLayerLikeTitle(x.MainLayerName)
+			}
+		}
+		modifiedLayers = append(modifiedLayers, currModifiedLayer)
+	}
+	sort.Slice(modifiedLayers, func(i, j int) bool {
+		currNameI, currNameJ := modifiedLayers[i].Name, modifiedLayers[j].Name
+		layerTypeI := strings.ReplaceAll(currNameI, extractIso(currNameI)+"_", "")
+		layerTypeJ := strings.ReplaceAll(currNameJ, extractIso(currNameJ)+"_", "")
+		return layerTypeI < layerTypeJ
+	})
+	return modifiedLayers
 }
 
 func getAllPaths() map[string]string {
@@ -144,7 +190,6 @@ func recursivelyCheckPath(data dataType, depth int, paths []string, dict *map[st
 }
 
 func extractIso(layerName string) string {
-	isos := []string{"ercot", "miso", "pjm", "caiso", "nyiso", "spp", "iso-ne", "wecc", "serc"}
 	for _, iso := range isos {
 		if strings.HasPrefix(replaceSpaceAndMakeSmallCase(layerName), iso) {
 			return iso

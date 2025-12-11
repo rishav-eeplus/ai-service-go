@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Service Evolution: V1 → V2</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Slider Container */
+        .slider-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .slides-wrapper {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
+            height: 100%;
+        }
+        
+        .slide {
+            min-width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        
+        .slide-content {
+            background: white;
+            border-radius: 20px;
+            padding: 50px;
+            max-width: 1000px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        h1 {
+            color: #1a1a2e;
+            font-size: 2.8em;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #16213e;
+            font-size: 2em;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        h3 {
+            color: #0f3460;
+            font-size: 1.4em;
+            margin: 20px 0 15px 0;
+        }
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 25px 0;
+        }
+        ul {
+            list-style: none;
+            padding-left: 10px;
+        }
+        li {
+            padding: 10px 0;
+            font-size: 1.2em;
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 14px 18px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            font-size: 1.1em;
+        }
+        th {
+            background: #667eea;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        .comparison > div {
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .v1-box {
+            background: #ffebee;
+        }
+        .v2-box {
+            background: #e8f5e9;
+        }
+        blockquote {
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin: 15px 0;
+            font-style: italic;
+            color: #555;
+        }
+        .summary-box {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .summary-box h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+        
+        /* Navigation */
+        .nav-buttons {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 100;
+        }
+        
+        .nav-btn {
+            background: rgba(255,255,255,0.9);
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.5em;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .nav-btn:hover {
+            background: white;
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+        
+        .nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Progress Indicator */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: #fff;
+            transition: width 0.3s ease;
+            z-index: 100;
+        }
+        
+        /* Slide Counter */
+        .slide-counter {
+            position: fixed;
+            bottom: 35px;
+            right: 40px;
+            background: rgba(255,255,255,0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: #667eea;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        /* Keyboard hint */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 35px;
+            left: 40px;
+            background: rgba(255,255,255,0.8);
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            color: #666;
+        }
+        
+        @media print {
+            .nav-buttons, .slide-counter, .keyboard-hint, .progress-bar {
+                display: none;
+            }
+            .slide {
+                page-break-after: always;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+    
+    <div class="slider-container">
+        <div class="slides-wrapper" id="slidesWrapper">
+            
+            <!-- Slide 1: V1 -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h2>📦 V1: The Simple Approach</h2>
+                    <h3>How it worked</h3>
+                    <div class="mermaid">
+                        flowchart LR
+                            A[👤 User Query] --> B[🔍 Vector Search]
+                            B --> C[📄 Retrieved Docs]
+                            C --> D[🤖 AI Response]
+                            D --> E[📤 Send to User]
+                            
+                            style A fill:#e1f5fe
+                            style D fill:#fff3e0
+                            style E fill:#e8f5e9
+                    </div>
+                    <h3>Characteristics</h3>
+                    <ul>
+                        <li>✅ <strong>Fast</strong> - Single API call</li>
+                        <li>✅ <strong>Simple</strong> - Just search & respond</li>
+                        <li>❌ <strong>Limited</strong> - Can only answer from stored docs</li>
+                        <li>❌ <strong>No context</strong> - Doesn't understand intent</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Slide 2: V2 -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h2>🧠 V2: The Smart Orchestrator</h2>
+                    <h3>How it works now</h3>
+                    <div class="mermaid">
+                        flowchart TB
+                            A[👤 User Query via WebSocket] --> B{🧠 Router}
+                            B --> C[📋 Planner]
+                            C --> D{Which Tool?}
+                            
+                            D --> E[📚 User Guide Search]
+                            D --> F[🗺️ Layer Info]
+                            D --> G[🔄 Update Info]
+                            D --> H[📍 Locate Layer]
+                            D --> I[📞 Help & Support]
+                            D --> J[📊 All Layers]
+                            
+                            E & F & G & H & I & J --> K[🤖 AI Thinks]
+                            K --> L{Need More Info?}
+                            L -->|Yes| M[❓ Ask Clarification]
+                            M --> A
+                            L -->|No| N[📤 Stream Response]
+                            
+                            style A fill:#e1f5fe
+                            style K fill:#fff3e0
+                            style N fill:#e8f5e9
+                            style M fill:#fce4ec
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 3: Tools -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h2>🔧 The Tools Available</h2>
+                    <div class="mermaid">
+                        mindmap
+                            root((AI Agent))
+                                User Guide
+                                    Documentation
+                                    How-to guides
+                                Layer Info
+                                    Metadata
+                                    Properties
+                                Updates
+                                    Release cycles
+                                    Schedules
+                                Locate Layer
+                                    Find specific data
+                                Help & Support
+                                    Contact info
+                                    Resources
+                                All Layers
+                                    Complete list
+                    </div>
+                </div>
+            </div>
+
+            <!-- Slide 4: Communication -->
+            <div class="slide">
+                <div class="slide-content">
+                    <h2>⚡ Real-time Communication</h2>
+                    <div class="comparison">
+                        <div class="v1-box">
+                            <h3>V1: Request-Response</h3>
+                            <div class="mermaid">
+                                sequenceDiagram
+                                    participant U as User
+                                    participant S as Server
+                                    
+                                    U->>S: POST /handle-query-v1
+                                    Note over S: Processing...
+                                    Note over S: (User waits)
+                                    S-->>U: Full Response
+                            </div>
+                        </div>
+                        <div class="v2-box">
+                            <h3>V2: WebSocket Streaming</h3>
+                            <div class="mermaid">
+                                sequenceDiagram
+                                    participant U as User
+                                    participant S as Server
+                                    
+                                    U->>S: Connect WebSocket
+                                    U->>S: Send Query
+                                    S-->>U: 🔄 Processing...
+                                    S-->>U: 🔍 Searching...
+                                    S-->>U: ✅ Response
+                            </div>
+                        </div>
+                    </div>
+                    <p style="text-align: center; margin-top: 20px; color: #667eea; font-weight: bold; font-size: 1.2em;">
+                        User sees progress in real-time! 🎯
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav-buttons">
+        <button class="nav-btn" id="prevBtn" onclick="prevSlide()">←</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextSlide()">→</button>
+    </div>
+    
+    <div class="slide-counter" id="slideCounter">1 / 4</div>
+    <div class="keyboard-hint">Use ← → keys or click arrows</div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose'
+        });
+        
+        let currentSlide = 0;
+        const totalSlides = document.querySelectorAll('.slide').length;
+        const wrapper = document.getElementById('slidesWrapper');
+        const counter = document.getElementById('slideCounter');
+        const progressBar = document.getElementById('progressBar');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        
+        function updateSlide() {
+            wrapper.style.transform = `translateX(-${currentSlide * 100}vw)`;
+            counter.textContent = `${currentSlide + 1} / ${totalSlides}`;
+            progressBar.style.width = `${((currentSlide + 1) / totalSlides) * 100}%`;
+            
+            prevBtn.disabled = currentSlide === 0;
+            nextBtn.disabled = currentSlide === totalSlides - 1;
+        }
+        
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+        
+        function prevSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                prevSlide();
+            }
+        });
+        
+        // Touch/swipe support
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+        
+        document.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            if (touchStartX - touchEndX > 50) {
+                nextSlide();
+            } else if (touchEndX - touchStartX > 50) {
+                prevSlide();
+            }
+        });
+        
+        // Initialize
+        updateSlide();
+    </script>
+</body>
+</html>
