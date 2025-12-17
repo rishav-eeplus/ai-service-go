@@ -3,6 +3,7 @@ package vector_db
 import (
 	"ai-service-go/internals/config"
 	"ai-service-go/internals/controllers"
+	"ai-service-go/internals/logger"
 	"ai-service-go/internals/utils"
 	"context"
 	"fmt"
@@ -28,9 +29,9 @@ func NewVectorStore() {
 		Host: appConfig.QdrantHost,
 	})
 	if err != nil {
-		utils.Logger.Fatalf("Failed to create Qdrant client: %v", err)
+		logger.Logger.Fatalf("Failed to create Qdrant client: %v", err)
 	}
-	utils.Logger.Info("Vector Store Manager loaded successfully ✅")
+	logger.Logger.Info("Vector Store Manager loaded successfully ✅")
 	VectorStoreManager = VectorStore{
 		Qdrant:         qdrantClient,
 		CollectionName: "documents",
@@ -47,7 +48,7 @@ func (vs *VectorStore) Initialize() error {
 	// Check if collection exists
 	collections, err := vs.Qdrant.ListCollections(ctx)
 	if err != nil {
-		utils.Logger.Errorf("Failed to list collections: %v", err)
+		logger.Logger.Errorf("Failed to list collections: %v", err)
 		return err
 	}
 
@@ -69,12 +70,12 @@ func (vs *VectorStore) Initialize() error {
 			}),
 		})
 		if err != nil {
-			utils.Logger.Errorf("Failed to create collection: %v", err)
+			logger.Logger.Errorf("Failed to create collection: %v", err)
 			return err
 		}
-		utils.Logger.Infof("Created collection: %s", vs.CollectionName)
+		logger.Logger.Infof("Created collection: %s", vs.CollectionName)
 	}
-	utils.Logger.Info("VectorStore Manager initialized successfully ✅")
+	logger.Logger.Info("VectorStore Manager initialized successfully ✅")
 	return nil
 }
 
@@ -96,7 +97,7 @@ func (vs *VectorStore) LoadEmbeddings() error {
 
 	content, err := os.ReadFile(dataPath)
 	if err != nil {
-		utils.Logger.Errorf("Failed to read data file: %v", err)
+		logger.Logger.Errorf("Failed to read data file: %v", err)
 		return err
 	}
 
@@ -108,7 +109,7 @@ func (vs *VectorStore) LoadEmbeddings() error {
 		return err
 	}
 
-	utils.Logger.Infof("Processing %d chunks", len(chunks))
+	logger.Logger.Infof("Processing %d chunks", len(chunks))
 
 	// Generate embeddings and create points
 	var points []*qdrant.PointStruct
@@ -138,11 +139,11 @@ func (vs *VectorStore) LoadEmbeddings() error {
 		Points:         points,
 	})
 	if err != nil {
-		utils.Logger.Errorf("Failed to upsert points: %v", err)
+		logger.Logger.Errorf("Failed to upsert points: %v", err)
 		return err
 	}
 
-	utils.Logger.Infof("Successfully loaded %d embeddings", len(points))
+	logger.Logger.Infof("Successfully loaded %d embeddings", len(points))
 	return nil
 }
 
@@ -164,7 +165,7 @@ func (vs *VectorStore) LoadEmbeddingsV2() error {
 
 	content, err := os.ReadFile(dataPath)
 	if err != nil {
-		utils.Logger.Errorf("Failed to read data file: %v", err)
+		logger.Logger.Errorf("Failed to read data file: %v", err)
 		return err
 	}
 
@@ -173,11 +174,11 @@ func (vs *VectorStore) LoadEmbeddingsV2() error {
 	// Split text into sections
 	sections, err := utils.SplitTextBySections(text)
 	if err != nil {
-		utils.Logger.Errorf("Failed to split text into sections: %v", err)
+		logger.Logger.Errorf("Failed to split text into sections: %v", err)
 		return err
 	}
 
-	utils.Logger.Infof("Processing %d sections", len(sections))
+	logger.Logger.Infof("Processing %d sections", len(sections))
 
 	// Generate embeddings and create points
 	var points []*qdrant.PointStruct
@@ -212,11 +213,11 @@ func (vs *VectorStore) LoadEmbeddingsV2() error {
 		Points:         points,
 	})
 	if err != nil {
-		utils.Logger.Errorf("Failed to upsert points: %v", err)
+		logger.Logger.Errorf("Failed to upsert points: %v", err)
 		return err
 	}
 
-	utils.Logger.Infof("Successfully loaded %d embeddings with section metadata", len(points))
+	logger.Logger.Infof("Successfully loaded %d embeddings with section metadata", len(points))
 	return nil
 }
 
@@ -239,7 +240,7 @@ func (vs *VectorStore) GetAllVectorsWithMetadata() ([]map[string]interface{}, er
 		Limit:          qdrant.PtrOf(uint32(10000)),  // Get all points
 	})
 	if err != nil {
-		utils.Logger.Errorf("Failed to scroll points: %v", err)
+		logger.Logger.Errorf("Failed to scroll points: %v", err)
 		return nil, err
 	}
 
@@ -299,7 +300,7 @@ func (vs *VectorStore) GetContentByIDs(ids []uint64) ([]string, error) {
 		WithVectors:    qdrant.NewWithVectors(false),
 	})
 	if err != nil {
-		utils.Logger.Errorf("Failed to get point by ID %v: %v", ids, err)
+		logger.Logger.Errorf("Failed to get point by ID %v: %v", ids, err)
 		return nil, err
 	}
 	// return content of all points
@@ -321,7 +322,7 @@ func (vs *VectorStore) ClearCollection(dropCollection bool) error {
 	if dropCollection {
 		err := vs.Qdrant.DeleteCollection(ctx, vs.CollectionName)
 		if err != nil {
-			utils.Logger.Warnf("Failed to delete collection: %v", err)
+			logger.Logger.Warnf("Failed to delete collection: %v", err)
 		}
 		return vs.Initialize()
 	}
@@ -366,7 +367,7 @@ func (vs *VectorStore) SearchSimilarChunks(query string, limit int, scoreThresho
 		WithPayload:    qdrant.NewWithPayload(true),
 	})
 	if err != nil {
-		utils.Logger.Errorf("Search error: %v", err)
+		logger.Logger.Errorf("Search error: %v", err)
 		return "", fmt.Errorf("failed to search similar chunks")
 	}
 

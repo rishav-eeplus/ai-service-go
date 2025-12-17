@@ -2,16 +2,14 @@ package orchestrator
 
 import (
 	"ai-service-go/internals/controllers"
+	"ai-service-go/internals/logger"
 	"ai-service-go/internals/tools"
 	"ai-service-go/internals/types"
-	"ai-service-go/internals/utils"
 	"ai-service-go/internals/vector_db"
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
-
-	"github.com/gorilla/websocket"
+	"net/http"
 )
 
 type Orchestrator struct {
@@ -28,124 +26,97 @@ func NewOrchestrator(aiManager controllers.OpenAIManager, toolRegistry *tools.To
 	}
 }
 
-
 type ClientRequestType struct {
 	UserQuery             string
 	PreviousConversation  string
 	Platform              string
 	ClarificationResponse string // User's response to a clarification request
+	ClarificationCount    int    // Number of clarifications already done
 	ClientToolRun         struct {
 		ToolName string
 		Params   map[string]any
 	}
 }
 
-func (o *Orchestrator) Run(conn *websocket.Conn, input *ClientRequestType, model string) {
-
+func (o *Orchestrator) RunSSE(w http.ResponseWriter, flusher http.Flusher, input *ClientRequestType, model string) {
 	sendMessage := func(msg types.StreamMessage) bool {
-		if err := conn.WriteJSON(msg); err != nil {
-			utils.Logger.Errorf("Error writing to WebSocket: %v", err)
+		data, err := json.Marshal(msg)
+		if err != nil {
+			logger.Logger.Errorf("Error marshalling message: %v", err)
 			return false
 		}
+
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
 		return true
 	}
 
-	// Helper function to wait for user response with extended timeout
-	waitForUserResponse := func() (string, error) {
-		// Extend the read deadline to give user time to respond (5 minutes)
-		conn.SetReadDeadline(time.Now().Add(5 * time.Minute))
+	// Send started message
+	sendMessage(types.StreamMessage{
+		Type:    "started",
+		Message: "Processing your query...",
+	})
 
-		var response struct {
-			Type     string `json:"type"`
-			Response string `json:"response"`
-		}
-		if err := conn.ReadJSON(&response); err != nil {
-			utils.Logger.Errorf("Error reading clarification response: %v", err)
-			return "", err
-		}
-		// Reset deadline back to normal
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-
-		return response.Response, nil
+	// Define max clarifications allowed
+	const maxClarifications = 3
+	// If user provided a clarification response, append it to the query
+	if input.ClarificationResponse != "" {
+		input.UserQuery = fmt.Sprintf("%s. User selected: %s", input.UserQuery, input.ClarificationResponse)
 	}
-
-	// Loop to handle clarification requests
-	maxClarificationLoops := 3
-	for i := range maxClarificationLoops {
-		// Step 3: Planning and Tool Execution
-		planOutput, err := o.PlannerAndToolExecuter(sendMessage, input, model, context.Background(), maxClarificationLoops-i)
-		if err != nil {
-			utils.Logger.Errorf("Planner error: %v", err)
-			sendMessage(types.StreamMessage{
-				Type:    "error",
-				Message: fmt.Sprintf("Failed to generate response: %v", err),
-			})
-			return
-		}
-
-		// Check if clarification is needed
-		if planOutput.NeedsClarification && len(planOutput.Options) > 0 {
-			// Send clarification request to client
-			if !sendMessage(types.StreamMessage{
-				Type:    "clarification",
-				Message: planOutput.ClarificationMessage,
-				Options: planOutput.Options,
-			}) {
-				return
-			}
-
-			// Wait for user response
-			userResponse, err := waitForUserResponse()
-			if err != nil {
-				utils.Logger.Errorf("Error waiting for user clarification: %v", err)
-				sendMessage(types.StreamMessage{
-					Type:    "error",
-					Message: "Failed to receive your selection. Please try again.",
-				})
-				return
-			}
-
-			// Update input with user's clarification response and continue the loop
-			input.UserQuery = fmt.Sprintf("%s. User selected: %s", input.UserQuery, userResponse)
-			input.ClarificationResponse = userResponse
-			sendMessage(types.StreamMessage{
-				Type:    "info",
-				Message: fmt.Sprintf("Processing your selection: %s", userResponse),
-			})
-			continue
-		}
-
-		// No clarification needed, send the final response
-		planOutputJSON, err := json.Marshal(planOutput)
-		if err != nil {
-			utils.Logger.Errorf("Error marshalling plan output: %v", err)
-			sendMessage(types.StreamMessage{
-				Type:    "error",
-				Message: fmt.Sprintf("Failed to process response: %v", err),
-			})
-			return
-		}
-
-		// Final Output
-		if !sendMessage(types.StreamMessage{
-			Type:    "response",
-			Data:    planOutputJSON,
-			Message: "Response generated successfully",
-		}) {
-			return
-		}
-
-		// Send completion
+	// Planning and Tool Execution
+	planOutput, err := o.PlannerAndToolExecuter(sendMessage, input, model, context.Background(), maxClarifications-input.ClarificationCount)
+	if err != nil {
+		logger.Logger.Errorf("Planner error: %v", err)
 		sendMessage(types.StreamMessage{
-			Type:    "complete",
-			Message: "Processing complete",
+			Type:    "error",
+			Message: fmt.Sprintf("Failed to generate response: %v", err),
 		})
 		return
 	}
 
-	// If we've exceeded max clarification loops (this should rarely happen now since last loop forces a response)
+	// Check if clarification is needed and if we have remaining clarification attempts
+	if planOutput.NeedsClarification && len(planOutput.Options) > 0 {
+		// Send clarification request with updated count and end stream
+		type ClarificationData struct {
+			Message            string   `json:"message"`
+			Options            []string `json:"options"`
+			ClarificationCount int      `json:"clarificationCount"`
+		}
+		clarificationJSON, _ := json.Marshal(ClarificationData{
+			Message:            planOutput.ClarificationMessage,
+			Options:            planOutput.Options,
+			ClarificationCount: input.ClarificationCount + 1,
+		})
+		sendMessage(types.StreamMessage{
+			Type:    "clarification",
+			Message: planOutput.ClarificationMessage,
+			Options: planOutput.Options,
+			Data:    clarificationJSON,
+		})
+		return
+	}
+
+	// No clarification needed, send the final response
+	planOutputJSON, err := json.Marshal(planOutput)
+	if err != nil {
+		logger.Logger.Errorf("Error marshalling plan output: %v", err)
+		sendMessage(types.StreamMessage{
+			Type:    "error",
+			Message: fmt.Sprintf("Failed to process response: %v", err),
+		})
+		return
+	}
+
+	// Send response
 	sendMessage(types.StreamMessage{
-		Type:    "warning",
-		Message: "Maximum clarification attempts reached. The response was generated with the available context.",
+		Type:    "response",
+		Data:    planOutputJSON,
+		Message: "Response generated successfully",
+	})
+
+	// Send completion
+	sendMessage(types.StreamMessage{
+		Type:    "complete",
+		Message: "Processing complete",
 	})
 }

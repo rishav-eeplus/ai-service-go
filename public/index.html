@@ -513,8 +513,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .streaming-status-item:last-child {
@@ -655,6 +662,8 @@
                     <div class="form-group">
                         <label for="model">OpenAI Model</label>
                         <select id="model" name="model">
+                            <option value="gpt-5.1">GPT-5.1</option>
+                            <option value="gpt-5.2">GPT-5.2</option>
                             <option value="gpt-5-mini">GPT-5-Mini</option>
                             <option value="gpt-5-nano">GPT-5-Nano</option>
                             <option value="gpt-4o-nano">GPT-4o Nano</option>
@@ -667,7 +676,8 @@
                     <div class="form-group">
                         <div class="label-with-button">
                             <label for="previousConversation">Conversation History</label>
-                            <button type="button" class="btn-small" id="clearHistoryBtn" onclick="clearConversationHistory()">Clear History</button>
+                            <button type="button" class="btn-small" id="clearHistoryBtn"
+                                onclick="clearConversationHistory()">Clear History</button>
                         </div>
                         <textarea id="previousConversation" name="previousConversation" readonly
                             placeholder='Conversation history will appear here automatically...'></textarea>

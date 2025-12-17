@@ -1,16 +1,15 @@
 package orchestrator
 
 import (
+	"ai-service-go/internals/logger"
 	"ai-service-go/internals/tools"
 	"ai-service-go/internals/types"
-	"ai-service-go/internals/utils"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	// "strings"
-
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -114,9 +113,12 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 	userContent := fmt.Sprintf("User's query: %s, previous conversation: %s, user's platform: %s",
 		input.UserQuery, input.PreviousConversation, input.Platform)
 
+
 	// If this is the last clarification loop, instruct the AI to provide a final response
 	if loopsRemaining <= 1 {
 		userContent += "\n\n**IMPORTANT: This is your final opportunity to respond. Do NOT ask for clarification. You MUST provide a complete response based on all the context you have gathered so far. If there are multiple options, provide information about ALL of them or make a reasonable choice and explain your reasoning.**"
+	}else{
+		fmt.Println("Clarification loop not reached, you can ask for clarification if needed. ")
 	}
 
 	// userContent += fmt.Sprintf("\nYou must use these tools: %s. Reasoning for using these tools: %s", strings.Join(extractIntentNames(useful_tools), ", "), reasoningForUsingTool)
@@ -137,28 +139,33 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 	maxNLoops := 8
 	count := 0
 
-	// Create progress ticker for dynamic messages during long waits
+	// Create and start progress ticker once for the entire execution
 	progressTicker := NewProgressTicker()
+	progressTicker.Start(ctx, sendMessage, 4*time.Second)
+	defer progressTicker.Stop()
 
+	totalInputToken, totalOutputToken := 0, 0
 	for count < maxNLoops {
 		count++
 		// ReAct Step: Thinking/Reasoning phase
 		// Send witty thinking message based on the step
 		if count == 1 {
-			sendMessage(types.StreamMessage{
+			if !sendMessage(types.StreamMessage{
 				Type:    "info",
 				Message: GetThinkingMessage(),
-			})
+			}) {
+				return nil, fmt.Errorf("failed to send thinking message")
+			}
 		} else {
 			// For subsequent steps, show multi-step progress
-			sendMessage(types.StreamMessage{
+			if !sendMessage(types.StreamMessage{
 				Type:    "info",
 				Message: GetMultiStepMessage(),
-			})
+			}) {
+				return nil, fmt.Errorf("failed to send multi-step message")
+			}
 		}
 
-		// Start progress ticker for AI completion (sends messages every 4 seconds)
-		progressTicker.Start(ctx, sendMessage, 4*time.Second)
 		resp, err := o.AIManager.OpenAI.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 			Model:    model,
 			Messages: messages,
@@ -173,15 +180,12 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 			},
 		})
 
-		// Stop the progress ticker after AI completion
-		progressTicker.Stop()
-
 		if err != nil {
 			return nil, err
 		}
 		// Log token usage
-		utils.Logger.Infof("Token usage - Prompt: %d, Completion: %d, Total: %d",
-			resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
+		totalInputToken += resp.Usage.PromptTokens
+		totalOutputToken += resp.Usage.CompletionTokens
 		msg := resp.Choices[0].Message
 		// CASE 1: model wants to call a tool
 		if len(msg.ToolCalls) > 0 {
@@ -197,39 +201,39 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 				// parse args
 				params := map[string]any{}
 				if err := json.Unmarshal([]byte(argsJSON), &params); err != nil {
-					utils.Logger.Errorf("Tool Planning and Execution failed - Failed to parse function args: %v", err)
+					logger.Logger.Errorf("Tool Planning and Execution failed - Failed to parse function args: %v", err)
 					return nil, fmt.Errorf("failed to parse function args: %w", err)
 				}
 				// send witty message that tool is being executed
 				wittyToolStart := GetToolStartMessage(fn, o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().Start)
-				sendMessage(types.StreamMessage{
+				if !sendMessage(types.StreamMessage{
 					Type:    "info",
 					Message: wittyToolStart,
-				})
-
-				// Start progress ticker for tool execution
-				progressTicker.Start(ctx, sendMessage, 3*time.Second)
+				}) {
+					return nil, fmt.Errorf("failed to send tool start message")
+				}
 
 				// run the tool
 				result, err := o.ToolResistory.Execute(ctx, fn, params, sendMessage)
 
-				// Stop the progress ticker after tool execution
-				progressTicker.Stop()
-
 				if err != nil {
 					// Send error recovery message
-					sendMessage(types.StreamMessage{
+					if !sendMessage(types.StreamMessage{
 						Type:    "info",
 						Message: GetErrorRecoveryMessage(),
-					})
+					}) {
+						return nil, fmt.Errorf("failed to send error recovery message")
+					}
 					return nil, err
 				}
 				// send witty completion message
 				wittyToolEnd := GetToolEndMessage(fn, o.ToolResistory.GetTool(toolCall.Function.Name).InformationMessage().End)
-				sendMessage(types.StreamMessage{
+				if !sendMessage(types.StreamMessage{
 					Type:    "info",
 					Message: wittyToolEnd,
-				})
+				}) {
+					return nil, fmt.Errorf("failed to send tool end message")
+				}
 				// return tool result back to model as a tool response
 				resultBytes, _ := json.Marshal(result)
 				messages = append(messages, openai.ChatCompletionMessage{
@@ -242,13 +246,21 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 		}
 		// CASE 2: normal assistant message — final answer
 		if msg.Role == openai.ChatMessageRoleAssistant {
-			sendMessage(types.StreamMessage{
+			// Log token usage for this loop
+			logger.Logger.WithContext(map[string]any{
+				"input_token":  totalInputToken,
+				"output_token": totalOutputToken,
+				"loops":        count,
+			}).Info("Tokens Used")
+			if !sendMessage(types.StreamMessage{
 				Type:    "success",
 				Message: GetFinalAnswerMessage(),
-			})
+			}) {
+				return nil, fmt.Errorf("failed to send final answer message")
+			}
 			var output PlannerOutput
 			if err := json.Unmarshal([]byte(msg.Content), &output); err != nil {
-				utils.Logger.Errorf("Tool Planning and Execution failed  - Failed to parse assistant output: %v", err)
+				logger.Logger.Errorf("Tool Planning and Execution failed  - Failed to parse assistant output: %v", err)
 				return nil, fmt.Errorf("failed to parse assistant output: %w", err)
 			}
 			return &output, nil
@@ -256,27 +268,36 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 	}
 	if count == maxNLoops {
 		// Tool Planning and Execution failed
-		sendMessage(types.StreamMessage{
+		if !sendMessage(types.StreamMessage{
 			Type:    "info",
 			Message: "🔧 Taking a bit longer than expected... let me wrap this up!",
-		})
+		}) {
+			return nil, fmt.Errorf("failed to send info message")
+		}
 		// get one last try without tool calls
 		msg, err := o.AIManager.OpenAI.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 			Model:    model,
 			Messages: messages,
 		})
 		if err != nil {
-			utils.Logger.Errorf("Tool Planning and Execution failed  - Final attempt without tool calls failed: %v", err)
+			logger.Logger.Errorf("Tool Planning and Execution failed  - Final attempt without tool calls failed: %v", err)
 			return nil, err
 		}
 		// Log token usage for final attempt
-		utils.Logger.Infof("Token usage (final attempt) - Prompt: %d, Completion: %d, Total: %d",
-			msg.Usage.PromptTokens, msg.Usage.CompletionTokens, msg.Usage.TotalTokens)
+		totalInputToken += msg.Usage.PromptTokens
+		totalOutputToken += msg.Usage.CompletionTokens
+		logger.Logger.WithContext(map[string]interface{}{
+			"input_token":  totalInputToken,
+			"output_token": totalOutputToken,
+			"loops":        count,
+		}).Info("Tokens Used")
 		if msg.Choices[0].Message.Role == openai.ChatMessageRoleAssistant {
-			sendMessage(types.StreamMessage{
+			if !sendMessage(types.StreamMessage{
 				Type:    "success",
 				Message: "💪 Got there in the end! Here's your answer...",
-			})
+			}) {
+				return nil, fmt.Errorf("failed to send success message")
+			}
 			var output PlannerOutput
 			if err := json.Unmarshal([]byte(msg.Choices[0].Message.Content), &output); err != nil {
 				return nil, fmt.Errorf("failed to parse assistant output: %w", err)
@@ -284,5 +305,6 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 			return &output, nil
 		}
 	}
+	logger.Logger.Errorf("Tool Planning and Execution failed  - Exceeded max loops without final answer")
 	return nil, fmt.Errorf("exceeded max loops without final answer")
 }

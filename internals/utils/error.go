@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"ai-service-go/internals/logger"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -47,7 +48,7 @@ func HandleError(w http.ResponseWriter, err error, message string, level string,
 }
 
 func logError(err error, message string, level string) {
-	logEntry := Logger.WithFields(map[string]interface{}{
+	logEntry := logger.Logger.WithFields(map[string]interface{}{
 		"level": level,
 		"error": err.Error(),
 		"stack": string(debug.Stack()),

@@ -3,6 +3,7 @@ package controllers
 import (
 	"ai-service-go/internals/config"
 	"ai-service-go/internals/data"
+	"ai-service-go/internals/logger"
 	"ai-service-go/internals/tools"
 	"ai-service-go/internals/utils"
 	"context"
@@ -37,7 +38,7 @@ func InitializeAiManager() {
 		TextGenModel:   appConfig.TextGenModel,
 		Instructions:   data.PromptForUsingTools,
 	}
-	utils.Logger.Info("AI Manager loaded successfully ✅")
+	logger.Logger.Info("AI Manager loaded successfully ✅")
 }
 
 // GenerateEmbedding generates an embedding for the given text
@@ -48,7 +49,7 @@ func (aiM *OpenAIManager) GenerateEmbedding(text string) ([]float32, error) {
 		Model: openai.EmbeddingModel(aiM.EmbeddingModel),
 	})
 	if err != nil {
-		utils.Logger.Errorf("Failed to generate embedding: %v", err)
+		logger.Logger.Errorf("Failed to generate embedding: %v", err)
 		return nil, err
 	}
 	return resp.Data[0].Embedding, nil
@@ -91,7 +92,7 @@ func (aiM *OpenAIManager) GetAIResponse(instructions string, userQuery string, p
 	})
 
 	if err != nil {
-		utils.Logger.Errorf("Failed to generate response: %v", err)
+		logger.Logger.Errorf("Failed to generate response: %v", err)
 		return nil, utils.TokenUsage{}, fmt.Errorf("something went wrong while generating response")
 	}
 
@@ -103,7 +104,7 @@ func (aiM *OpenAIManager) GetAIResponse(instructions string, userQuery string, p
 	}
 	cost := utils.CalculatePrice(usage, model)
 
-	utils.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"level":       "debug",
 		"query":       userQuery,
 		"tokens-used": resp.Usage.TotalTokens,
@@ -114,7 +115,7 @@ func (aiM *OpenAIManager) GetAIResponse(instructions string, userQuery string, p
 	var aiResponse any
 	err = json.Unmarshal([]byte(resp.Choices[0].Message.Content), &aiResponse)
 	if err != nil {
-		utils.Logger.Errorf("Failed to parse AI response: %v", err)
+		logger.Logger.Errorf("Failed to parse AI response: %v", err)
 		return nil, usage, fmt.Errorf("failed to parse response")
 	}
 
@@ -187,7 +188,7 @@ func (aiM *OpenAIManager) GenerateResponseV1(userQuery, previousConversation, re
 	})
 
 	if err != nil {
-		utils.Logger.Errorf("Failed to generate response: %v", err)
+		logger.Logger.Errorf("Failed to generate response: %v", err)
 		return nil, utils.TokenUsage{}, fmt.Errorf("something went wrong while generating response")
 	}
 
@@ -199,7 +200,7 @@ func (aiM *OpenAIManager) GenerateResponseV1(userQuery, previousConversation, re
 	}
 	cost := utils.CalculatePrice(usage, model)
 
-	utils.Logger.WithFields(map[string]interface{}{
+	logger.Logger.WithFields(map[string]interface{}{
 		"level":       "debug",
 		"query":       userQuery,
 		"tokens-used": resp.Usage.TotalTokens,
@@ -210,7 +211,7 @@ func (aiM *OpenAIManager) GenerateResponseV1(userQuery, previousConversation, re
 	var aiResponse AIResponse
 	err = json.Unmarshal([]byte(resp.Choices[0].Message.Content), &aiResponse)
 	if err != nil {
-		utils.Logger.Errorf("Failed to parse AI response: %v", err)
+		logger.Logger.Errorf("Failed to parse AI response: %v", err)
 		return nil, usage, fmt.Errorf("failed to parse response")
 	}
 
@@ -273,7 +274,6 @@ func (aiM *OpenAIManager) AskModelAndHandleTools(userQuery, previousConversation
 			return msg.Content, nil
 		}
 	}
-	fmt.Println(count, maxNLoops)
 	if count == maxNLoops {
 		// get one last try without tool calls
 		msg, err := aiM.OpenAI.CreateChatCompletion(ctx, openai.ChatCompletionRequest{

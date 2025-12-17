@@ -2,6 +2,7 @@
 main
 ai-service-go
 data 
+docs
 # Logs
 *.log
 logs/

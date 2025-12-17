@@ -1,7 +1,7 @@
 package config
 
 import (
-	"ai-service-go/internals/utils"
+	"ai-service-go/internals/logger"
 	"os"
 	"strconv"
 )
@@ -35,7 +35,7 @@ func LoadConfig() {
 		AllLayersURL:   getEnvOrDefault("ALL_LAYERS_URL", ""),
 		SupportEmail:   getEnvOrDefault("SUPPORT_EMAIL", ""),
 	}
-	utils.Logger.Info("Config loaded successfully ✅")
+	logger.Logger.Info("Config loaded successfully ✅")
 	AppConfig = &config
 }
 
@@ -44,7 +44,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	utils.Logger.Warn("Env variable not found for: " + key + ", using default value: " + defaultValue)
+	logger.Logger.Warn("Env variable not found for: " + key + ", using default value: " + defaultValue)
 	return defaultValue
 }
 

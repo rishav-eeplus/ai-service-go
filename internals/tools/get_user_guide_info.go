@@ -3,7 +3,6 @@ package tools
 import (
 	"ai-service-go/internals/types"
 	"context"
-	"fmt"
 	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -38,8 +37,6 @@ func (gl *GetUserGuideInformation) Execute(ctx context.Context, params map[strin
 	if !ok && n_chunksInt <= 0 {
 		n_chunksInt = 2
 	}
-
-	fmt.Printf("Executing GetUserGuideInformation with query: %s and n_chunks: %d\n", query, n_chunksInt)
 	return gl.VectorManager.SearchSimilarChunks(query, n_chunksInt, 0)
 }
 

@@ -2,7 +2,7 @@ package orchestrator
 
 import (
 	"ai-service-go/internals/types"
-	"ai-service-go/internals/utils"
+	"ai-service-go/internals/logger"
 	"context"
 	"fmt"
 	"strings"
@@ -17,7 +17,7 @@ func (o *Orchestrator) Retreiver(sendMessage func(msg types.StreamMessage) bool,
 	})
 	vectors, err := o.VectorManager.GetAllVectorsWithMetadata()
 	if err != nil {
-		utils.Logger.Errorf("Error while getting vector store context for query: %s", input.UserQuery)
+		logger.Logger.Errorf("Error while getting vector store context for query: %s", input.UserQuery)
 		return "", err
 	}
 	// Build a summary of vectors for AI to evaluate
@@ -62,19 +62,19 @@ func (o *Orchestrator) Retreiver(sendMessage func(msg types.StreamMessage) bool,
 						%s`, input.UserQuery, input.PreviousConversation, intentNames, strings.Join(vectorSummaries, "\n"))
 	rawResponse, _, err := o.AIManager.GetAIResponse(instructions, input.UserQuery, input.PreviousConversation, "", vectorSelectionSchema, input.Platform)
 	if err != nil {
-		utils.Logger.Errorf("Error getting AI response for vector selection: %v", err)
+		logger.Logger.Errorf("Error getting AI response for vector selection: %v", err)
 		return "", err
 	}
 	responseMap, ok := (*rawResponse).(map[string]interface{})
 	if !ok {
-		utils.Logger.Errorf("Invalid response format from AI for query: %s", input.UserQuery)
+		logger.Logger.Errorf("Invalid response format from AI for query: %s", input.UserQuery)
 		return "", fmt.Errorf("invalid response format")
 	}
 
 	// Parse the vector IDs array properly
 	idsArray, ok := responseMap["relevant_vector_ids"].([]interface{})
 	if !ok {
-		utils.Logger.Warn("No relevant vector IDs found, continuing without them")
+		logger.Logger.Warn("No relevant vector IDs found, continuing without them")
 		idsArray = []interface{}{}
 	}
 
@@ -95,7 +95,7 @@ func (o *Orchestrator) Retreiver(sendMessage func(msg types.StreamMessage) bool,
 
 	relevantVectorContents, err := o.VectorManager.GetContentByIDs(selectedVectors)
 	if err != nil {
-		utils.Logger.Errorf("Error while getting relevant vectors from AI for query: %s", input.UserQuery)
+		logger.Logger.Errorf("Error while getting relevant vectors from AI for query: %s", input.UserQuery)
 		return "", err
 	}
 	contextForPlanning := "User Query: " + input.UserQuery + "\n"

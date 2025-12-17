@@ -9,7 +9,12 @@ const statusText = document.getElementById('statusText');
 const streamingStatusContainer = document.getElementById('streamingStatusContainer');
 const inlineStreamingContainer = document.getElementById('inlineStreamingContainer');
 
-let currentWebSocket = null;
+let currentEventSource = null;
+let currentQuery = '';
+let currentPlatform = '';
+let currentModel = '';
+let currentPreviousConversation = '';
+let currentClarificationCount = 0;
 
 // Conversation history tracking
 let conversationHistory = [];
@@ -100,86 +105,90 @@ function clearStreamingStatus() {
     inlineStreamingContainer.innerHTML = '';
 }
 
-// WebSocket connection handler
-function connectWebSocket(query, platform, model, previousConversation) {
+// SSE connection handler
+function connectSSE(query, platform, model, previousConversation, clarificationResponse = '', clarificationCount = 0) {
     // Close existing connection if any
-    if (currentWebSocket) {
-        currentWebSocket.close();
-        currentWebSocket = null;
+    if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
     }
 
-    // Determine protocol (ws or wss based on current page protocol)
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}${getBasePath()}/ws/query`;
+    // Store current request params for clarification retry
+    currentQuery = query;
+    currentPlatform = platform;
+    currentModel = model;
+    currentPreviousConversation = previousConversation;
+    currentClarificationCount = clarificationCount;
 
-    currentWebSocket = new WebSocket(wsUrl);
+    addStreamingStatus('Connecting to server...', 'info');
 
-    // Set up timeout for connection
-    const connectionTimeout = setTimeout(() => {
-        if (currentWebSocket && currentWebSocket.readyState !== WebSocket.OPEN) {
-            currentWebSocket.close();
-            addStreamingStatus('Connection timeout', 'error');
-            showError('Failed to establish WebSocket connection');
-        }
-    }, 10000); // 10 second timeout
-
-    currentWebSocket.onopen = function () {
-        clearTimeout(connectionTimeout);
-        addStreamingStatus('Connected to server', 'success');
-
-        // Send query
-        const payload = {
-            query: query,
-            platform: platform,
-            model: model,
-            previousConversation: previousConversation || 'No previous conversation provided'
-        };
-
-        try {
-            currentWebSocket.send(JSON.stringify(payload));
-        } catch (error) {
-            console.error('Error sending message:', error);
-            addStreamingStatus('Failed to send query', 'error');
-        }
+    // Make POST request with fetch
+    const requestBody = {
+        query: query,
+        platform: platform,
+        model: model,
+        previousConversation: previousConversation || 'No previous conversation provided',
+        clarificationResponse: clarificationResponse,
+        clarificationCount: clarificationCount
     };
 
-    currentWebSocket.onmessage = function (event) {
-        try {
-            const message = JSON.parse(event.data);
-            handleStreamMessage(message);
-        } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-            addStreamingStatus('Invalid message received', 'warning');
+    fetch(`${getBasePath()}/handle-query-v2`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+    }).then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-    };
 
-    currentWebSocket.onerror = function (error) {
-        console.error('WebSocket error:', error);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        function processText({ done, value }) {
+            if (done) {
+                addStreamingStatus('Connection closed', 'info');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Query';
+                return;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep the last incomplete line in buffer
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = line.substring(6);
+                        const message = JSON.parse(data);
+                        handleStreamMessage(message);
+                    } catch (error) {
+                        console.error('Error parsing SSE message:', error);
+                    }
+                }
+            }
+
+            return reader.read().then(processText);
+        }
+
+        return reader.read().then(processText);
+    }).catch(error => {
+        console.error('SSE connection error:', error);
         addStreamingStatus('Connection error occurred', 'error');
-        showError('WebSocket connection error');
-    };
-
-    currentWebSocket.onclose = function (event) {
-        clearTimeout(connectionTimeout);
-
-        // Log close reason
-        if (event.code === 1000 || event.code === 1006) {
-            addStreamingStatus('Connection closed', 'info');
-        } else {
-            addStreamingStatus(`Connection closed (code: ${event.code})`, 'info');
-        }
-
+        showError('Failed to connect to server');
         submitBtn.disabled = false;
         submitBtn.textContent = 'Submit Query';
-        currentWebSocket = null;
-    };
+    });
 }
 
-// Cleanup function to close WebSocket when page is unloaded
+// Cleanup function when page is unloaded
 window.addEventListener('beforeunload', function () {
-    if (currentWebSocket) {
-        currentWebSocket.close(1000, 'Page unload');
-        currentWebSocket = null;
+    if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
     }
 });
 
@@ -223,7 +232,17 @@ function handleStreamMessage(message) {
 
         case 'clarification':
             addStreamingStatus('Clarification needed', 'warning');
-            displayClarificationOptions(message.message, message.options);
+            // Extract clarificationCount from message data
+            let newCount = 0;
+            if (message.data && typeof message.data === 'object') {
+                try {
+                    const clarificationData = typeof message.data === 'string' ? JSON.parse(message.data) : message.data;
+                    newCount = clarificationData.clarificationCount || 0;
+                } catch (e) {
+                    console.error('Error parsing clarification data:', e);
+                }
+            }
+            displayClarificationOptions(message.message, message.options, newCount);
             break;
 
         case 'response':
@@ -270,15 +289,16 @@ form.addEventListener('submit', async (e) => {
     responseContainer.className = 'response-area';
     responseContent.innerHTML = '';
     clearMessages();
-    clearStreamingStatus();
-
+    clearStreamingStatus();    
+    // Reset clarification count for new query
+    currentClarificationCount = 0;
     // Check if streaming is enabled (v2 with WebSocket)
     const useStreaming = document.getElementById('useStreaming').checked;
 
     if (useStreaming && apiVersion === 'v2') {
-        // Use WebSocket for streaming
+        // Use SSE for streaming
         addStreamingStatus('Initializing streaming connection...', 'info');
-        connectWebSocket(query, platform, model, previousConversation);
+        connectSSE(query, platform, model, previousConversation);
     } else {
         // Use traditional HTTP request
         addStreamingStatus('Sending request...', 'processing');
@@ -413,8 +433,11 @@ function useFollowUp(question) {
 }
 
 // Display clarification options when the bot needs user input
-function displayClarificationOptions(message, options) {
+function displayClarificationOptions(message, options, clarificationCount = 0) {
     responseContainer.className = 'response-area';
+
+    // Store the clarification count for use when sending response
+    currentClarificationCount = clarificationCount;
 
     const optionsHtml = options.map((option, index) => `
         <button class="clarification-option" data-option="${escapeHtml(option)}">
@@ -440,37 +463,23 @@ function displayClarificationOptions(message, options) {
         button.addEventListener('click', function () {
             const selectedOption = this.getAttribute('data-option');
             sendClarificationResponse(selectedOption);
-
-            // Remove the clarification list and show selection message
-            responseContent.innerHTML = `
-                <div class="clarification-selected">
-                    <span class="selected-icon">✓</span>
-                    <span class="selected-text"><strong>${escapeHtml(selectedOption)}</strong> selected</span>
-                </div>
-            `;
-            addStreamingStatus('Processing your selection...', 'processing');
         });
     });
 }
 
 // Send user's clarification response back to the server
-function sendClarificationResponse(response) {
-    if (currentWebSocket && currentWebSocket.readyState === WebSocket.OPEN) {
-        const payload = {
-            type: 'clarification_response',
-            response: response
-        };
+function sendClarificationResponse(selectedOption) {
+    // Show selection confirmation
+    responseContent.innerHTML = `
+        <div class="clarification-selected">
+            <span class="selected-icon">✓</span>
+            <span class="selected-text"><strong>${escapeHtml(selectedOption)}</strong> selected</span>
+        </div>
+    `;
+    addStreamingStatus('Processing your selection...', 'processing');
 
-        try {
-            currentWebSocket.send(JSON.stringify(payload));
-            addStreamingStatus('Sending your selection...', 'processing');
-        } catch (error) {
-            console.error('Error sending clarification response:', error);
-            addStreamingStatus('Failed to send selection', 'error');
-        }
-    } else {
-        addStreamingStatus('Connection lost. Please try again.', 'error');
-    }
+    // Make new SSE request with clarification and incremented count
+    connectSSE(currentQuery, currentPlatform, currentModel, currentPreviousConversation, selectedOption, currentClarificationCount);
 }
 
 function showError(message) {

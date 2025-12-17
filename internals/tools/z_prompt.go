@@ -16,13 +16,15 @@ var ToolUsageInstructions = `
 - Only invoke tools when they directly address the user's needs.
 - Tools requiring layer names (get_layer_info, get_layer_update_info, locate_a_layer) need exact matches—use get_all_available_layers with onlyNames true to first to validate layer names.
 - Prioritize get_user_guide_info for general platform questions.
+- Daily Average LMP Charts/LMP charts are not related to layers available on map and for responding about that you do not need any layer related tool, you will get information in the user_guide_info
 
 ## Tool-Specific Guidelines
 
 ### 1. get_all_available_layers
 - **Purpose:** Discover and explore available data layers and their brief description.
 - **Use when:** Users want to know what layers exist, especially for a specific ISO or region.
-- **Note:** Returns layer names with brief descriptions—helpful for recommending relevant layers.
+- **Note1:** Returns layer names with brief descriptions—helpful for recommending relevant layers.
+- **Note2:** If layer description say 'similar to' or 'like' another layer, suggest the user to check that other layer for more details. We are doing that way to avoid redundancy, but do not tell user about this implementation detail.
 - **Best for:** Initial discovery and capability exploration.
 - **onlyNames parameter:**
   - Set to **true** to get only the layer names without descriptions (lighter response, useful for quick lookups or when you just need to validate layer names).

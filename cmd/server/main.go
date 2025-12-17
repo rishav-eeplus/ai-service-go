@@ -4,9 +4,9 @@ import (
 	"ai-service-go/internals/config"
 	"ai-service-go/internals/controllers"
 	"ai-service-go/internals/handlers"
+	"ai-service-go/internals/logger"
 	"ai-service-go/internals/orchestrator"
 	"ai-service-go/internals/tools"
-	"ai-service-go/internals/utils"
 	"ai-service-go/internals/vector_db"
 	"fmt"
 	"net/http"
@@ -18,7 +18,7 @@ import (
 
 func main() {
 	// initialize logger
-	utils.InitLogger()
+	logger.InitLogger()
 	// load config
 	config.LoadConfig()
 	// initialise aiManager
@@ -33,7 +33,7 @@ func main() {
 	toolRegistory.RegisterTool(&tools.GetLayerInformation{})
 	toolRegistory.RegisterTool(&tools.GetUpdateInformation{})
 	toolRegistory.RegisterTool(&tools.GetAllAvailableLayers{})
-	toolRegistory.RegisterTool(&tools.LocateALayer{}) 
+	toolRegistory.RegisterTool(&tools.LocateALayer{})
 	toolRegistory.RegisterTool(&tools.GetHelpSupport{})
 	// intialise orchestrator
 	orch := orchestrator.NewOrchestrator(controllers.AiManager, toolRegistory, &vector_db.VectorStoreManager)
@@ -50,9 +50,7 @@ func main() {
 	r.Get("/vectors", h.HandleGetAllVectors)
 	r.Get("/status", h.HandleStatus)
 	r.Post("/handle-query-v1", h.HandleQueryV1)
-	r.Post("/handle-query-v1.5", h.HandleQueryAndTools)
-	r.Post("/handle-query-v2", h.HandleQueryV2)
-	r.Get("/ws/query", h.HandleWebSocketQuery)
+	r.Post("/handle-query-v2", h.HandleSSEQuery)
 	r.Get("/temp", h.TempHandler)
 
 	// 404 handler

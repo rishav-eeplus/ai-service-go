@@ -507,10 +507,12 @@ func (pt *ProgressTicker) Start(ctx context.Context, sendMessage func(msg types.
 			case <-pt.ticker.C:
 				elapsed := int(time.Since(pt.startTime).Seconds())
 				msg := GetDynamicWaitMessage(elapsed)
-				sendMessage(types.StreamMessage{
+				if !sendMessage(types.StreamMessage{
 					Type:    "info",
 					Message: msg,
-				})
+				}) {
+					return
+				}
 			case <-pt.done:
 				return
 			case <-ctx.Done():

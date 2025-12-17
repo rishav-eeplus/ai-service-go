@@ -6,7 +6,6 @@ toolchain go1.24.10
 
 require (
 	github.com/go-chi/chi/v5 v5.2.3
-	github.com/gorilla/websocket v1.5.3
 	github.com/qdrant/go-client v1.16.1
 	github.com/rs/zerolog v1.34.0
 	github.com/sashabaranov/go-openai v1.41.2

@@ -13,7 +13,11 @@
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #0f172a;
+            background-image: 
+                radial-gradient(at 20% 30%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 80% 70%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(14, 165, 233, 0.08) 0px, transparent 70%);
             min-height: 100vh;
             overflow: hidden;
         }
@@ -42,15 +46,16 @@
         }
         
         .slide-content {
-            background: white;
-            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 16px;
             padding: 50px;
             max-width: 1000px;
             width: 100%;
             max-height: 85vh;
             overflow-y: auto;
-            box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.1);
             animation: slideIn 0.5s ease-out;
+            backdrop-filter: blur(10px);
         }
         
         @keyframes slideIn {
@@ -71,10 +76,10 @@
             margin-bottom: 20px;
         }
         h2 {
-            color: #16213e;
+            color: #0f172a;
             font-size: 2em;
             margin-bottom: 25px;
-            border-bottom: 3px solid #667eea;
+            border-bottom: 2px solid #e2e8f0;
             padding-bottom: 10px;
         }
         h3 {
@@ -108,7 +113,7 @@
             font-size: 1.1em;
         }
         th {
-            background: #667eea;
+            background: #1e293b;
             color: white;
         }
         tr:nth-child(even) {
@@ -161,18 +166,19 @@
         }
         
         .nav-btn {
-            background: rgba(255,255,255,0.9);
-            border: none;
+            background: rgba(255,255,255,0.95);
+            border: 1px solid rgba(255,255,255,0.2);
             width: 50px;
             height: 50px;
-            border-radius: 50%;
+            border-radius: 12px;
             cursor: pointer;
-            font-size: 1.5em;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-size: 1.3em;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: #1e293b;
         }
         
         .nav-btn:hover {
@@ -192,8 +198,8 @@
             position: fixed;
             top: 0;
             left: 0;
-            height: 4px;
-            background: #fff;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
             transition: width 0.3s ease;
             z-index: 100;
         }
@@ -203,12 +209,13 @@
             position: fixed;
             bottom: 35px;
             right: 40px;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.95);
             padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: bold;
-            color: #667eea;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border-radius: 10px;
+            font-weight: 600;
+            color: #1e293b;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            font-size: 0.9em;
         }
         
         /* Keyboard hint */
@@ -216,11 +223,11 @@
             position: fixed;
             bottom: 35px;
             left: 40px;
-            background: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.9);
             padding: 8px 15px;
-            border-radius: 10px;
-            font-size: 0.85em;
-            color: #666;
+            border-radius: 8px;
+            font-size: 0.8em;
+            color: #64748b;
         }
         
         @media print {
@@ -242,7 +249,7 @@
             <!-- Slide 1: V1 -->
             <div class="slide">
                 <div class="slide-content">
-                    <h2>📦 V1: The Simple Approach</h2>
+                    <h2>📦 V1: The First Approach</h2>
                     <h3>How it worked</h3>
                     <div class="mermaid">
                         flowchart LR
@@ -258,9 +265,8 @@
                     <h3>Characteristics</h3>
                     <ul>
                         <li>✅ <strong>Fast</strong> - Single API call</li>
-                        <li>✅ <strong>Simple</strong> - Just search & respond</li>
+                        <li>✅ <strong>Simpler</strong> - Search & respond</li>
                         <li>❌ <strong>Limited</strong> - Can only answer from stored docs</li>
-                        <li>❌ <strong>No context</strong> - Doesn't understand intent</li>
                     </ul>
                 </div>
             </div>
@@ -271,28 +277,19 @@
                     <h2>🧠 V2: The Smart Orchestrator</h2>
                     <h3>How it works now</h3>
                     <div class="mermaid">
-                        flowchart TB
-                            A[👤 User Query via WebSocket] --> B{🧠 Router}
-                            B --> C[📋 Planner]
-                            C --> D{Which Tool?}
-                            
-                            D --> E[📚 User Guide Search]
-                            D --> F[🗺️ Layer Info]
-                            D --> G[🔄 Update Info]
-                            D --> H[📍 Locate Layer]
-                            D --> I[📞 Help & Support]
-                            D --> J[📊 All Layers]
-                            
-                            E & F & G & H & I & J --> K[🤖 AI Thinks]
-                            K --> L{Need More Info?}
-                            L -->|Yes| M[❓ Ask Clarification]
-                            M --> A
-                            L -->|No| N[📤 Stream Response]
-                            
-                            style A fill:#e1f5fe
-                            style K fill:#fff3e0
-                            style N fill:#e8f5e9
-                            style M fill:#fce4ec
+                       flowchart LR
+        
+        subgraph V2["V2: Intelligent"]
+            A2[Query] --> B2[Understand Intent]
+            B2 --> C2[Pick Best Tool]
+            C2 --> D2[Execute]
+            D2 --> E2{Enough Info?}
+            E2 -->|No| F2[Ask User]
+            F2 --> B2
+            E2 -->|Yes| G2[Answer]
+        end
+        
+        style V2 fill:#e8f5e9
                     </div>
                 </div>
             </div>
@@ -363,6 +360,18 @@
                 </div>
             </div>
 
+            <!-- Challenges and Opportunities -->
+             <div class="slide">
+                <div class="slide-content">
+                    <h2>🚀 Challenges & Opportunities</h2>
+                </div>
+                <!-- empty box -->
+                <div>
+                    <div class="comparison">
+                    </div>
+                </div>
+             </div>
+
         </div>
     </div>
 
@@ -372,7 +381,7 @@
         <button class="nav-btn" id="nextBtn" onclick="nextSlide()">→</button>
     </div>
     
-    <div class="slide-counter" id="slideCounter">1 / 4</div>
+    <div class="slide-counter" id="slideCounter">1 / 5</div>
     <div class="keyboard-hint">Use ← → keys or click arrows</div>
 
     <script>

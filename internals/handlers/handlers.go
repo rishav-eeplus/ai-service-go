@@ -3,6 +3,7 @@ package handlers
 import (
 	"ai-service-go/internals/controllers"
 	"ai-service-go/internals/data"
+	"ai-service-go/internals/logger"
 	"ai-service-go/internals/orchestrator"
 	"ai-service-go/internals/tools"
 	"ai-service-go/internals/utils"
@@ -11,8 +12,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-
-	"github.com/gorilla/websocket"
 )
 
 type Handler struct {
@@ -68,7 +67,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 
 	collections, err := h.VectorStoreManager.Qdrant.ListCollections(ctx)
 	if err != nil {
-		utils.Logger.Error("Error fetching vector store status")
+		logger.Logger.Error("Error fetching vector store status")
 		http.Error(w, "Error fetching vector store status", http.StatusInternalServerError)
 		return
 	}
@@ -116,7 +115,7 @@ func (h *Handler) HandleLoadEmbeddings(w http.ResponseWriter, r *http.Request) {
 
 	err := h.VectorStoreManager.LoadEmbeddings()
 	if err != nil {
-		utils.Logger.Errorf("Error while loading embeddings: %v", err)
+		logger.Logger.Errorf("Error while loading embeddings: %v", err)
 		http.Error(w, "Error while loading embeddings", http.StatusInternalServerError)
 		return
 	}
@@ -134,7 +133,7 @@ func (h *Handler) HandleLoadEmbeddingsV2(w http.ResponseWriter, r *http.Request)
 
 	err := h.VectorStoreManager.LoadEmbeddingsV2()
 	if err != nil {
-		utils.Logger.Errorf("Error while loading embeddings v2: %v", err)
+		logger.Logger.Errorf("Error while loading embeddings v2: %v", err)
 		http.Error(w, "Error while loading embeddings", http.StatusInternalServerError)
 		return
 	}
@@ -146,7 +145,7 @@ func (h *Handler) HandleLoadEmbeddingsV2(w http.ResponseWriter, r *http.Request)
 func (h *Handler) HandleGetAllVectors(w http.ResponseWriter, r *http.Request) {
 	vectors, err := h.VectorStoreManager.GetAllVectorsWithMetadata()
 	if err != nil {
-		utils.Logger.Errorf("Error while fetching vectors: %v", err)
+		logger.Logger.Errorf("Error while fetching vectors: %v", err)
 		http.Error(w, "Error while fetching vectors", http.StatusInternalServerError)
 		return
 	}
@@ -167,7 +166,7 @@ type QueryRequest struct {
 func (h *Handler) HandleQueryV1(w http.ResponseWriter, r *http.Request) {
 	var req QueryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.Logger.Error("Invalid request payload")
+		logger.Logger.Error("Invalid request payload")
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
@@ -185,7 +184,7 @@ func (h *Handler) HandleQueryV1(w http.ResponseWriter, r *http.Request) {
 	// Search for similar chunks
 	retrievedChunks, err := h.VectorStoreManager.SearchSimilarChunks(req.Query, 0, 0)
 	if err != nil {
-		utils.Logger.Error("Could not search similar chunks")
+		logger.Logger.Error("Could not search similar chunks")
 		http.Error(w, "Something bad happened while handling query", http.StatusInternalServerError)
 		return
 	}
@@ -193,7 +192,7 @@ func (h *Handler) HandleQueryV1(w http.ResponseWriter, r *http.Request) {
 	// Generate response
 	response, _, err := h.AiManager.GenerateResponseV1(req.Query, previousConversation, retrievedChunks, platform, "")
 	if err != nil {
-		utils.Logger.Error("Could not generate response" + err.Error())
+		logger.Logger.Error("Could not generate response" + err.Error())
 		http.Error(w, "Something bad happened while generating response", http.StatusInternalServerError)
 		return
 	}
@@ -214,112 +213,26 @@ func (h *Handler) HandleQueryV1(w http.ResponseWriter, r *http.Request) {
 	SendSuccessResponse(w, 200, "Query processed successfully", response)
 }
 
-func (h *Handler) HandleQueryAndTools(w http.ResponseWriter, r *http.Request) {
-	var req QueryRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.Logger.Error("Invalid request payload")
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-
-	platform := r.URL.Query().Get("platform")
-	if platform == "" {
-		platform = "standard"
-	}
-
-	previousConversation := req.PreviousConversation
-	if previousConversation == "" {
-		previousConversation = "No previous conversation provided"
-	}
-
-	// Generate response
-	result, err := h.AiManager.AskModelAndHandleTools(req.Query, previousConversation, platform, "", h.ToolRegistry, r.Context())
-	if err != nil {
-		utils.Logger.Error("Could not generate response" + err.Error())
-		http.Error(w, "Something bad happened while generating response", http.StatusInternalServerError)
-		return
-	}
-	response := controllers.AIResponse{
-		Result: result,
-	}
-	SendSuccessResponse(w, 200, "Query processed successfully", response)
-}
-
-func (h *Handler) HandleQueryV2(w http.ResponseWriter, r *http.Request) {
-	var req QueryRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.Logger.Error("Invalid request payload")
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-
-	platform := r.URL.Query().Get("platform")
-	if platform == "" {
-		platform = "standard"
-	}
-
-	previousConversation := req.PreviousConversation
-	if previousConversation == "" {
-		previousConversation = "No previous conversation provided"
-	}
-
-	// Generate response
-	result, _, err := h.AiManager.GenerateResponseV2(req.Query, previousConversation, platform, "", h.ToolRegistry, r.Context())
-	if err != nil {
-		utils.Logger.Error("Could not generate response" + err.Error())
-		http.Error(w, "Something bad happened while generating response", http.StatusInternalServerError)
-		return
-	}
-	SendSuccessResponse(w, 200, "Query processed successfully", result)
-}
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins in development
-	},
-}
-
-// StreamMessage represents different types of messages sent via WebSocket
+// StreamMessage represents different types of messages sent via SSE
 type StreamMessage struct {
 	Type    string      `json:"type"`
 	Data    interface{} `json:"data"`
 	Message string      `json:"message,omitempty"`
 }
 
-// HandleWebSocketQuery handles streaming query responses via WebSocket
-func (h *Handler) HandleWebSocketQuery(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		utils.Logger.Errorf("WebSocket upgrade failed: %v", err)
-		return
-	}
-	defer func() {
-		conn.Close()
-	}()
-
-	// Set connection deadlines
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		return nil
-	})
-
-	// Read the initial query from client
+// HandleSSEQuery handles streaming query responses via Server-Sent Events
+func (h *Handler) HandleSSEQuery(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Query                string `json:"query"`
-		PreviousConversation string `json:"previousConversation"`
-		Platform             string `json:"platform"`
-		Model                string `json:"model"`
-	}
+		Query                 string `json:"query"`
+		PreviousConversation  string `json:"previousConversation"`
+		Platform              string `json:"platform"`
+		Model                 string `json:"model"`
+		ClarificationResponse string `json:"clarificationResponse"`		
+		ClarificationCount    int    `json:"clarificationCount"`	}
 
-	if err := conn.ReadJSON(&req); err != nil {
-		utils.Logger.Errorf("Error reading WebSocket message: %v", err)
-		conn.WriteJSON(StreamMessage{
-			Type:    "error",
-			Message: "Invalid request format",
-		})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Logger.Errorf("Error decoding request: %v", err)
+		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
@@ -331,20 +244,26 @@ func (h *Handler) HandleWebSocketQuery(w http.ResponseWriter, r *http.Request) {
 		req.PreviousConversation = "No previous conversation provided"
 	}
 
-	// Send acknowledgment
-	if err := conn.WriteJSON(StreamMessage{
-		Type:    "started",
-		Message: "Processing your query...",
-	}); err != nil {
-		utils.Logger.Errorf("Error sending started message: %v", err)
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
 		return
 	}
+
 	userInput := &orchestrator.ClientRequestType{
-		UserQuery:            req.Query,
-		PreviousConversation: req.PreviousConversation,
-		Platform:             req.Platform,
+		UserQuery:             req.Query,
+		PreviousConversation:  req.PreviousConversation,
+		Platform:              req.Platform,
+		ClarificationResponse: req.ClarificationResponse,
+		ClarificationCount:    req.ClarificationCount,
 	}
 
-	// Call the streaming version of GenerateResponseV2
-	h.Orchestrator.Run(conn, userInput, req.Model)
+	// Call the SSE version
+	h.Orchestrator.RunSSE(w, flusher, userInput, req.Model)
 }
