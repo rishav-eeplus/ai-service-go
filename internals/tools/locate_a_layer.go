@@ -3,7 +3,6 @@ package tools
 import (
 	"ai-service-go/internals/types"
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,33 +21,8 @@ func (gl *LocateALayer) Name() string {
 	return "locate_a_layer"
 }
 func (gl *LocateALayer) Description() string {
-	return `Provides step-by-step UI navigation instructions to open, turn on, get or find and enable a specific layer on the platform. Generates instructions based on layer type.`
+	return `Provides step-by-step UI navigation instructions to open/ toggle/ turn on/ get or find and enable a specific layer on the platform. Generates instructions based on layer type.`
 }
-
-// func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any) (any, error) {
-// 	relevantLayerMap, ok := params["relevant_layer"].(map[string]any)
-// 	if !ok {
-// 		fmt.Printf("Type assertion failed for relevant_layer: %v\n", params["relevant_layer"])
-// 		return "Please provide valid layer information.", nil
-// 	}
-
-// 	// Extract fields from the map
-// 	name, _ := relevantLayerMap["name"].(string)
-// 	layerType, _ := relevantLayerMap["layer_type"].(string)
-// 	instructions := "The platform has a ISO selector present in top middle section of the screen (in the middle of navigation bar). Use that to select the relevant ISO for the layer.\n"
-// 	instructions += "Just to the right of ISO selector, there is layer list, click that to get a popup which lists all layers available for the selected ISO, and provides a button to toggle one.\n"
-// 	switch layerType {
-// 	case "ercot", "pjm", "miso", "caiso", "nyiso", "iso-ne", "spp", "serc", "wecc":
-// 		instructions += fmt.Sprintf("Since the layer %s is an ISO based layer, first select the relevant ISO from the ISO selector, then open the layer list and toggle the layer %s from there.", name, name)
-// 	case "nationwide":
-// 		instructions += fmt.Sprintf("Since the layer %s is a nationwide layer, select nationwide in the ISO selector, then open the layer list and toggle the layer %s from there.", name, name)
-// 	case "iso-based":
-// 		instructions += fmt.Sprintf("Since the layer %s is an ISO based layer, first select the relevant ISO from the ISO selector, then open the layer list and toggle the layer %s from there.", name, name)
-// 	default:
-// 		instructions += fmt.Sprintf("Using type %s of the layer %s, select the appropriate ISO from the ISO selector, then open the layer list and toggle the layer %s from there.", layerType, name, name)
-// 	}
-// 	return instructions, nil
-// }
 
 func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	relevantLayerMap, ok := params["relevant_layer"].(map[string]any)
@@ -56,45 +30,20 @@ func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any, send
 		fmt.Printf("Type assertion failed for relevant_layer: %v\n", params["relevant_layer"])
 		return "Please provide valid layer information.", nil
 	}
-	openLayerInUI, _ := params["open_layer_in_ui"].(bool)
-	openLayerInUI = false
-
+	// openLayerInUI, _ := params["open_layer_in_ui"].(bool)
 	// Extract fields from the map
 	name, _ := (relevantLayerMap["name"].(string))
 	name = replaceSpaceAndMakeSmallCase(name)
-	layerType, _ := relevantLayerMap["layer_type"].(string)
+	layerGroup, _ := relevantLayerMap["layer_group"].(string)
 	allLayerPaths := GetLayerPath()
 	layerPath := allLayerPaths[name]
-	if openLayerInUI {
-		sendMessage(types.StreamMessage{
-			Type: "tool_request",
-			Data: func() json.RawMessage {
-				data, _ := json.Marshal(struct {
-					ToolName string         `json:"tool_name"`
-					Params   map[string]any `json:"params"`
-				}{
-					ToolName: gl.Name(),
-					Params: map[string]any{
-						"relevant_layer": name,
-						"path":           layerPath,
-					},
-				})
-				return data
-			}(),
-		})
-	}
-
-	var instructions string
-	if openLayerInUI {
-		instructions = "The layer has been attempted to open in the UI. If it is not visible, follow these steps to find and enable it manually:\n\n"
-	} else {
-		instructions = "To find and enable the layer on the platform, follow these steps:\n\n"
-	}
+	layerGroup = replaceSpaceAndMakeSmallCase(layerGroup)
+	instructions := "To find and enable the layer on the platform, follow these steps:\n\n"
 	// Step 1: ISO selection
 	instructions += "1. **Select the ISO/Region**: The platform has an ISO selector in the top middle section of the screen (in the navigation bar). "
-	switch layerType {
+	switch layerGroup {
 	case "ercot", "pjm", "miso", "caiso", "nyiso", "iso-ne", "spp", "serc", "wecc":
-		instructions += fmt.Sprintf("Select '%s' from the ISO selector.\n\n", strings.ToUpper(layerType))
+		instructions += fmt.Sprintf("Select '%s' from the ISO selector.\n\n", strings.ToUpper(layerGroup))
 	case "nationwide":
 		instructions += "Select 'Nationwide' from the ISO selector.\n\n"
 	case "iso-based":
@@ -114,9 +63,7 @@ func (gl *LocateALayer) Execute(ctx context.Context, params map[string]any, send
 	}
 	// Step 4: Toggle the layer
 	instructions += "4. **Enable the Layer**: Once you locate the layer, click the toggle button next to it to enable the layer on the map."
-
 	return instructions, nil
-
 }
 
 func (gl *LocateALayer) Definition() openai.FunctionDefinition {
@@ -128,7 +75,7 @@ func (gl *LocateALayer) Definition() openai.FunctionDefinition {
 			"properties": map[string]any{
 				"relevant_layer": map[string]any{
 					"type":        "object",
-					"description": "The relevant layer information including name, layer information and layer type.",
+					"description": "The relevant layer information including name, layer information and layer group.",
 					"properties": map[string]any{
 						"name": map[string]any{
 							"type":        "string",
@@ -138,17 +85,17 @@ func (gl *LocateALayer) Definition() openai.FunctionDefinition {
 							"type":        "string",
 							"description": "Information about the layer.",
 						},
-						"layer_type": map[string]any{
+						"layer_group": map[string]any{
 							"type":        "string",
 							"description": "Type of the layer such as iso-based, nationwide, ercot, pjm etc.",
 						},
 					},
-					"required": []string{"name", "layer_information", "layer_type"},
+					"required": []string{"name", "layer_information", "layer_group"},
 				},
-				"open_layer_in_ui": map[string]any{
-					"type":        "boolean",
-					"description": "If true, attempts to open the layer directly in the UI. If the layer is not visible after attempting, manual instructions will be provided as fallback.",
-				},
+				// "open_layer_in_ui": map[string]any{
+				// 	"type":        "boolean",
+				// 	"description": "If true, attempts to open/turn-on/toggle the layer directly for the user. If the layer is not visible after attempting, manual instructions will be provided as fallback.",
+				// },
 			},
 			"required": []string{"relevant_layer"},
 		},

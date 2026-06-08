@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"ai-service-go/internals/chats_db"
 	"ai-service-go/internals/controllers"
 	"ai-service-go/internals/logger"
 	"ai-service-go/internals/tools"
@@ -16,17 +17,20 @@ type Orchestrator struct {
 	AIManager     controllers.OpenAIManager
 	ToolResistory *tools.ToolRegistry
 	VectorManager *vector_db.VectorStore
+	ChatDB        *chats_db.ChatDB
 }
 
-func NewOrchestrator(aiManager controllers.OpenAIManager, toolRegistry *tools.ToolRegistry, vectorManager *vector_db.VectorStore) *Orchestrator {
+func NewOrchestrator(aiManager controllers.OpenAIManager, toolRegistry *tools.ToolRegistry, vectorManager *vector_db.VectorStore, chatDB *chats_db.ChatDB) *Orchestrator {
 	return &Orchestrator{
 		AIManager:     aiManager,
 		ToolResistory: toolRegistry,
 		VectorManager: vectorManager,
+		ChatDB:        chatDB,
 	}
 }
 
 type ClientRequestType struct {
+	UserName              string
 	UserQuery             string
 	PreviousConversation  string
 	Platform              string

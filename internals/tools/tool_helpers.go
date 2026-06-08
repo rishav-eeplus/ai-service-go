@@ -44,7 +44,7 @@ func makeGetRequest[T any](ctx context.Context, url string) (*T, error) {
 	return &result, nil
 }
 
-func getAllAvailableLayers(ctx context.Context) ([]AvailableLayersData, error) {
+func getAllAvailableLayersFromAPI(ctx context.Context) ([]AvailableLayersData, error) {
 	type response struct {
 		Data []AvailableLayersData `json:"data"`
 	}
@@ -63,8 +63,7 @@ func getAllAvailableLayers(ctx context.Context) ([]AvailableLayersData, error) {
 		}
 	}
 	filteredLayers = layerDefinitionHelper(filteredLayers)
-	AllAvailableLayers = filteredLayers
-	return AllAvailableLayers, nil
+	return filteredLayers, nil
 }
 
 func layerDefinitionHelper(allLayers []AvailableLayersData) []AvailableLayersData {
@@ -95,7 +94,7 @@ func layerDefinitionHelper(allLayers []AvailableLayersData) []AvailableLayersDat
 			layerType := strings.ReplaceAll(currName, extractIso(currName)+"_", "")
 			x := isoLayerTypes[layerType]
 			if x.MainLayerName != currName && x.Count > 2 {
-				currModifiedLayer.LayerInformation = `Check ` + makeLayerLikeTitle(x.MainLayerName)
+				currModifiedLayer.LayerInformation = `Refer to ` + makeLayerLikeTitle(x.MainLayerName) + ` for detailed description`
 			}
 		}
 		modifiedLayers = append(modifiedLayers, currModifiedLayer)
@@ -155,6 +154,7 @@ func recursivelyCheckPath(data dataType, depth int, paths []string, dict *map[st
 		"ercot_765kv_step_phase_1",
 		"ercot_765kv_step_phase_2",
 		"ercot_765kv_step_phase_3",
+		"miso_lrtp", 
 	}
 	// case 2 - all children of case2 are considered as case2_child
 	exceptionsCase2 := []string{

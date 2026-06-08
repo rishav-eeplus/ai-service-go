@@ -20,7 +20,7 @@ func (gl *GetUserGuideInformation) Name() string {
 	return "get_user_guide_info"
 }
 func (gl *GetUserGuideInformation) Description() string {
-	description := "Fetches general information and acts as a manual for users on how to effectively utilize data platform. This is go to tool when no other tool can be used to answer the user query."
+	description := "Searches platform documentation and user guides for general platform usage, features, workflows, and how-to information. Use specifically for non-layer-specific questions about platform functionality."
 	vectorsWithMetaData, err := gl.VectorManager.GetAllVectorsWithMetadata()
 	if err != nil {
 		return description

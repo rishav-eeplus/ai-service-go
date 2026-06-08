@@ -15,7 +15,7 @@ timeline
         : More Capable
     V2 : WebSocket Orchestrator
       : Real-time Streaming
-      : Smart Tool Selection
+      : Smart Tool Selectionkv
 ```
 
 ---

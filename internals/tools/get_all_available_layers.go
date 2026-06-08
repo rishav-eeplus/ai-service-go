@@ -7,7 +7,6 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-var AllAvailableLayers []AvailableLayersData
 var InternalLayers = []string{"hunt_power_(hp-2)"}
 
 type GetAllAvailableLayers struct{}
@@ -29,46 +28,25 @@ func (gl *GetAllAvailableLayers) Execute(ctx context.Context, params map[string]
 	if val, ok := params["onlyNames"].(bool); ok {
 		onlyNames = val
 	}
-	if len(AllAvailableLayers) > 0 {
-		if onlyNames {
-			names := []string{}
-			for _, layer := range AllAvailableLayers {
-				names = append(names, makeLayerLikeTitle(layer.Name))
-			}
-			return names, nil
-		}
-		formattedLayers := []AvailableLayersData{}
-		for _, layer := range AllAvailableLayers {
-			layer.Name = makeLayerLikeTitle(layer.Name)
-			formattedLayers = append(formattedLayers, layer)
-		}
-		return formattedLayers, nil
-	}
-	layers, err := getAllAvailableLayers(ctx)
+
+	dataManager := GetDataManager()
+	layers, err := dataManager.GetAvailableLayers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	paths := getAllPaths()
-	AllLayerPaths = paths
-	filteredLayers := []AvailableLayersData{}
-	for _, layer := range layers {
-		if _, exists := paths[replaceSpaceAndMakeSmallCase(layer.Name)]; exists {
-			filteredLayers = append(filteredLayers, layer)
-		}
-	}
-	AllAvailableLayers = filteredLayers
+
 	if onlyNames {
-		names := []string{}
-		for _, layer := range AllAvailableLayers {
-			names = append(names, makeLayerLikeTitle(layer.Name))
+		names := make([]string, len(layers))
+		for i, layer := range layers {
+			names[i] = makeLayerLikeTitle(layer.Name)
 		}
 		return names, nil
 	}
 
-	formattedLayers := []AvailableLayersData{}
-	for _, layer := range AllAvailableLayers {
-		layer.Name = makeLayerLikeTitle(layer.Name)
-		formattedLayers = append(formattedLayers, layer)
+	formattedLayers := make([]AvailableLayersData, len(layers))
+	for i, layer := range layers {
+		formattedLayers[i] = layer
+		formattedLayers[i].Name = makeLayerLikeTitle(layer.Name)
 	}
 	return formattedLayers, nil
 }

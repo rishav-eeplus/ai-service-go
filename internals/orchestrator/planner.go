@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"ai-service-go/internals/chats_db"
 	"ai-service-go/internals/logger"
 	"ai-service-go/internals/tools"
 	"ai-service-go/internals/types"
@@ -14,49 +15,48 @@ import (
 )
 
 // ReActSystemPrompt encourages the model to follow ReAct (Reasoning + Acting) paradigm
-var ReActSystemPrompt = fmt.Sprintf(`You are Anna, a female assistant for EEHORIZON who uses tools and her wit to assist users to understand 
-        and use platform features effectively. Engage in witty conversations in respectful manner for added context and assistance.
-        You may also be provided with previous conversations in this format: previous conversation: [{"role":"user/assistant","content":"conversation"}],
-		## Internal Reasoning Process
-		For each step, internally follow this cycle:
+var ReActSystemPrompt = fmt.Sprintf(`You are Anna, a concise EEHORIZON assistant. Provide direct, useful answers without unnecessary elaboration.
+		Previous conversations may be provided as: [{"role":"user/assistant","content":"conversation"}]
+		## Internal Process (Do NOT show to user)
 		1. **Thought**: Reason about what to do next
 		2. **Action**: Call a tool if needed
 		3. **Observation**: Analyze the tool result
-		Continue this cycle until you have enough information.		
+
 		# Tool Usage Guidelines: %s
-		
-		## RESTRICTIONS (IMPORTANT - READ CAREFULLY)
-		You CANNOT and must NEVER claim to do actions on behalf of the user or the platform, or any actions outside 
-		 the scope of your capabilities.
-		
-		## Constraints
-		- Be interactive and engaging while assisting users.
-		- If a user greets you like Hi Anna or Hello Anna, simply respond with a polite greeting.
-        - If a query falls outside the scope of EEHORIZON, politely apologize, acknowledging the impossibility of helping in a creative way.
 
-		## Clarification Rules (IMPORTANT)
-		When you encounter ambiguous situations that require user input, ask for clarification:
-		- If a search returns multiple matching items (e.g., multiple layers with similar names like "substations", "transmission_substations", "distribution_substations"), set "needsClarification" to true and list the options.
-		- If the user's query is vague or could mean multiple things, ask for clarification.
-		- If you need more specific information to proceed, ask for it.
-		- When asking for clarification, provide clear options for the user to choose from.
-		- 4-5 options are preffered, but if required not more than 8 options should be presented to the user.
+		## Core Rules
+		- Be brief and to the point. Avoid verbose explanations.
+		- For greetings ,farewells, gratitude (Hi Anna, Hello Anna, Goodbye Anna, Thanks), respond with a short greeting or farewell or acknowledgment.
+		- For out-of-scope queries, politely decline in one sentence.
+		- NEVER claim to perform actions beyond your capabilities, any other than those defined in the tools.
+		- When providing information about a layer, always explain how to reach it using the "locate a layer" tool.
 
-		## Final Output Rules
-		- Your final response must ONLY contain the direct answer to the user's question.
-		- Do NOT include your internal reasoning process (Thought/Action/Observation) in the final output.
-		- Do NOT explain what tools you used or how you arrived at the answer.
-		- Write as if you're speaking directly to the user—concise, helpful, and to the point.
-		- Write clean markdown content. 
-		- The "result" field should contain ONLY the answer the user needs, nothing else.
+		## Clarification (Only when necessary)
+		Ask for clarification ONLY when:
+		- Multiple similar matches exist (eg. user said substations but multiple available substation layers - "ercot substations", "pjm substations")
+		- Query is ambiguous and cannot be answered without user input
+		- To narrow down options when there are too many possibilities
+
+		When clarifying:
+		- Provide 4-5 options (max 8)
+		- Set "needsClarification" to true
+
+		## Response Style (CRITICAL)
+		- Be direct and actionable
+		- Skip pleasantries and filler phrases
+		- Do NOT explain your reasoning process to the user
+		- Do NOT mention which tools you used
+		- Do NOT add "I hope this helps" or similar closing statements
+		- Use clean markdown formatting (eg - bold, italics, lists)
+		- AVOID large headings (## H2, # H1) - use **bold text** instead for emphasis
+		- Focus on what the user needs to know, nothing more
+
 		# Output Format
-        - Return all responses in JSON format.
-        - **result**: Your response.
-        - **needsClarification**: Boolean - Set to true ONLY when you need the user to choose from options or provide more information.
-        - **clarificationMessage**: String - The question you want to ask the user (only when needsClarification is true).
-        - **options**: Array of strings - The options for the user to choose from (only when needsClarification is true, usual 4-5, max 8 options).
-        - **followUps**: An array of questions(maximum 2) formatted as if the user is asking them to the assistant,  
-		   also answered using the available tools and user guide data. Leave empty if needsClarification is true.
+		- **result**: Direct answer only. No fluff, no process explanation.
+		- **needsClarification**: Boolean - true only when user input is required.
+		- **clarificationMessage**: Question for user (only when needsClarification is true).
+		- **options**: Array of choices (only when needsClarification is true, 4-5 preferred, max 8).
+		- **followUps**: Max 2 relevant questions phrased as if asked BY the user (e.g., "How do I...?" not "You can..."). Empty if needsClarification is true.
 `, tools.ToolUsageInstructions)
 
 var FinalOutputSchema = map[string]any{
@@ -83,7 +83,7 @@ var FinalOutputSchema = map[string]any{
 		},
 		"followUps": map[string]any{
 			"type":        "array",
-			"description": "An array of follow-up questions for further engagement with the user. The question should be such that it can be future questions asked by the user to get more clarity on their requirements.",
+			"description": "An array of follow-up questions phrased as if asked BY the user (not suggestions TO the user). These should be natural questions a user might ask next to explore the topic further. Maximum 2 questions.",
 			"items": map[string]any{
 				"type": "string",
 			},
@@ -94,6 +94,7 @@ var FinalOutputSchema = map[string]any{
 }
 
 type PlannerOutput struct {
+	ID                   string   `json:"id"`
 	Result               string   `json:"result"`
 	NeedsClarification   bool     `json:"needsClarification"`
 	ClarificationMessage string   `json:"clarificationMessage"`
@@ -113,12 +114,9 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 	userContent := fmt.Sprintf("User's query: %s, previous conversation: %s, user's platform: %s",
 		input.UserQuery, input.PreviousConversation, input.Platform)
 
-
 	// If this is the last clarification loop, instruct the AI to provide a final response
 	if loopsRemaining <= 1 {
 		userContent += "\n\n**IMPORTANT: This is your final opportunity to respond. Do NOT ask for clarification. You MUST provide a complete response based on all the context you have gathered so far. If there are multiple options, provide information about ALL of them or make a reasonable choice and explain your reasoning.**"
-	}else{
-		fmt.Println("Clarification loop not reached, you can ask for clarification if needed. ")
 	}
 
 	// userContent += fmt.Sprintf("\nYou must use these tools: %s. Reasoning for using these tools: %s", strings.Join(extractIntentNames(useful_tools), ", "), reasoningForUsingTool)
@@ -141,7 +139,7 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 
 	// Create and start progress ticker once for the entire execution
 	progressTicker := NewProgressTicker()
-	progressTicker.Start(ctx, sendMessage, 4*time.Second)
+	progressTicker.Start(ctx, sendMessage, time.Duration(tickerTimeInterval)*time.Second)
 	defer progressTicker.Stop()
 
 	totalInputToken, totalOutputToken := 0, 0
@@ -189,8 +187,8 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 		msg := resp.Choices[0].Message
 		// CASE 1: model wants to call a tool
 		if len(msg.ToolCalls) > 0 {
+			fmt.Println("Tool call detected:", msg.ToolCalls[0].Function.Name)
 			// ReAct Step: Action phase
-
 			// Append the assistant's message with tool calls
 			messages = append(messages, msg)
 			// Process each tool call
@@ -246,12 +244,21 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 		}
 		// CASE 2: normal assistant message — final answer
 		if msg.Role == openai.ChatMessageRoleAssistant {
-			// Log token usage for this loop
-			logger.Logger.WithContext(map[string]any{
-				"input_token":  totalInputToken,
-				"output_token": totalOutputToken,
-				"loops":        count,
-			}).Info("Tokens Used")
+			// Calculate cost and duration
+			chatForDB := &types.AnnaChatType{
+				UserName:     input.UserName,
+				Query:        input.UserQuery,
+				Response:     msg.Content,
+				Model:        model,
+				Feedback:     0,
+				InputTokens:  totalInputToken,
+				OutputTokens: totalOutputToken,
+			}
+			chatID, err := AddChatToDB(ctx, chatForDB, o.ChatDB)
+			if err != nil {
+				logger.Logger.Errorf("Failed to add chat to DB: %v", err)
+			}
+
 			if !sendMessage(types.StreamMessage{
 				Type:    "success",
 				Message: GetFinalAnswerMessage(),
@@ -259,6 +266,7 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 				return nil, fmt.Errorf("failed to send final answer message")
 			}
 			var output PlannerOutput
+			output.ID = chatID
 			if err := json.Unmarshal([]byte(msg.Content), &output); err != nil {
 				logger.Logger.Errorf("Tool Planning and Execution failed  - Failed to parse assistant output: %v", err)
 				return nil, fmt.Errorf("failed to parse assistant output: %w", err)
@@ -286,11 +294,21 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 		// Log token usage for final attempt
 		totalInputToken += msg.Usage.PromptTokens
 		totalOutputToken += msg.Usage.CompletionTokens
-		logger.Logger.WithContext(map[string]interface{}{
-			"input_token":  totalInputToken,
-			"output_token": totalOutputToken,
-			"loops":        count,
-		}).Info("Tokens Used")
+
+		chatForDB := &types.AnnaChatType{
+			UserName:     input.UserName,
+			Query:        input.UserQuery,
+			Response:     msg.Choices[0].Message.Content,
+			Model:        model,
+			Feedback:     0,
+			InputTokens:  totalInputToken,
+			OutputTokens: totalOutputToken,
+		}
+
+		chatID, err := AddChatToDB(ctx, chatForDB, o.ChatDB)
+		if err != nil {
+			logger.Logger.Errorf("Failed to add chat to DB: %v", err)
+		}
 		if msg.Choices[0].Message.Role == openai.ChatMessageRoleAssistant {
 			if !sendMessage(types.StreamMessage{
 				Type:    "success",
@@ -299,6 +317,7 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 				return nil, fmt.Errorf("failed to send success message")
 			}
 			var output PlannerOutput
+			output.ID = chatID
 			if err := json.Unmarshal([]byte(msg.Choices[0].Message.Content), &output); err != nil {
 				return nil, fmt.Errorf("failed to parse assistant output: %w", err)
 			}
@@ -307,4 +326,9 @@ func (o *Orchestrator) PlannerAndToolExecuter(sendMessage func(msg types.StreamM
 	}
 	logger.Logger.Errorf("Tool Planning and Execution failed  - Exceeded max loops without final answer")
 	return nil, fmt.Errorf("exceeded max loops without final answer")
+}
+
+func AddChatToDB(ctx context.Context, dbChat *types.AnnaChatType, db *chats_db.ChatDB) (string, error) {
+	return db.AddChat(
+		ctx, *dbChat)
 }

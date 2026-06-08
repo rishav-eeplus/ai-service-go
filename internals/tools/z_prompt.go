@@ -11,12 +11,28 @@ var ToolUsageInstructions = `
 3. get_layer_update_info
 4. get_user_guide_info
 5. locate_a_layer
+6. get_help_support
 
 ## General Principles
 - Only invoke tools when they directly address the user's needs.
 - Tools requiring layer names (get_layer_info, get_layer_update_info, locate_a_layer) need exact matches—use get_all_available_layers with onlyNames true to first to validate layer names.
 - Prioritize get_user_guide_info for general platform questions.
 - Daily Average LMP Charts/LMP charts are not related to layers available on map and for responding about that you do not need any layer related tool, you will get information in the user_guide_info
+
+## Layer Reference Detection & Matching Strategy
+**CRITICAL: When user queries contain layer references, ALWAYS start with get_all_available_layers for fuzzy matching:**
+
+### Common Layer Patterns:
+- **ISO-specific layers**: ERCOT Substations, PJM Ancillary Services Pricing, CAISO Operational Resources
+- **User abbreviations**: "AS" → Ancillary Services Pricing, "subs" → Substations, "transmission" → Transmission Lines  
+- **Partial names**: "ancillary services" → "ERCOT Yearly Ancillary Services Pricing"
+- **Action queries**: "how to open substations" → locate ERCOT/PJM/etc Substations layer
+
+### Mandatory Process:
+1. **Detect layer terms**: substations, ancillary services, LMP, operational resources, transmission, etc.
+2. **ALWAYS call get_all_available_layers** when detected (never use get_user_guide_info)
+3. **Match user terms** against layer names and descriptions
+4. **Handle results**: Single match → proceed | Multiple from same ISO → use as example | Multiple ISOs → ask for region clarification
 
 ## Tool-Specific Guidelines
 
@@ -31,23 +47,25 @@ var ToolUsageInstructions = `
   - Set to **false** (or omit) to get full layer data including names, descriptions, and types.
 
 ### 2. get_layer_info
-- **Purpose:** Retrieve detailed properties about specific layers. This tool always opens a layer information popup for the user.
+- **Purpose:** Retrieve detailed properties about specific layers. This tool can open a layer information popup for the user.
 - **Use only when:** Users need in-depth information (detailed attributes available) for a certain layer.
-- **Required:** Exact layer name and isOpeningPopupEnough boolean.
-- **Note:** Accepts comma-separated layer names for batch queries.
-- **isOpeningPopupEnough parameter:**
-  - Set to **true** if opening the popup is sufficient (the popup contains all layer details). Inform the user that the layer information popup has been opened.
-  - Set to **false** only if you need the raw layer data to process, compare, or include in your response even after the popup has been opened.
-
+- **Requires:** Exact layer name, isOpeningModalHelpful, isOpeningModalEnough.
+- **Modal & data behavior:**
+  - isOpeningModalHelpful=true: Open the layer-info modal for user visualization for that layer.
+  - isOpeningModalHelpful=false: Do not open the modal.
+  - isOpeningModalEnough=true: Opening the modal is sufficient for user understanding; do not return layer data to the LLM.
+  - isOpeningModalEnough=false: Open the modal and return layer information for LLM reasoning or downstream use.
+  
 ### 3. get_layer_update_info
-- **Purpose:** Check update schedules and data freshness.
-- **Use when:** Users ask about refresh frequency, last updated dates, or data availability timelines.
+- **Purpose:** Get data update cycles and availability timeframes for specific layers.
+- **Use when:** Users ask about refresh frequency, last updated dates, data availability years/timelines, or when data was last refreshed for specific layers.
 - **Note:** Accepts comma-separated layer names for batch queries.
-- **Required** : Exact layer name.
+- **Required:** Exact layer name and platform type (trial/standard).
 
 ### 4. get_user_guide_info
-- **Purpose:** Answer general platform and feature questions.
-- **Use when:** Users need help understanding how to use the platform, its features, or workflows.
+- **Purpose:** Search platform documentation for general usage and feature questions.
+- **Use when:** Users need help understanding platform workflows, UI features, or general functionality (NOT layer-specific).
+- **Do NOT use for:** Layer data availability, update cycles, or specific layer information.
 - **Best for:** Onboarding, how-to questions, and feature explanations.
 
 ### 5. locate_a_layer

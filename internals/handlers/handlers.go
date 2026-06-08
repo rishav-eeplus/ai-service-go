@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-service-go/internals/chats_db"
 	"ai-service-go/internals/controllers"
 	"ai-service-go/internals/data"
 	"ai-service-go/internals/logger"
@@ -15,6 +16,7 @@ import (
 )
 
 type Handler struct {
+	ChatDBManager      *chats_db.ChatDB
 	VectorStoreManager *vector_db.VectorStore
 	AiManager          *controllers.OpenAIManager
 	ToolRegistry       *tools.ToolRegistry
@@ -26,7 +28,6 @@ type SuccessResponse struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
 	Data    any    `json:"data"`
-	Content any    `json:"content"`
 }
 
 // ErrorResponse struct to hold the error response
@@ -36,12 +37,13 @@ type ErrorResponse struct {
 	Message    string `json:"message"`
 }
 
-func NewHandler(vs *vector_db.VectorStore, aim *controllers.OpenAIManager, tr *tools.ToolRegistry, orch *orchestrator.Orchestrator) *Handler {
+func NewHandler(vs *vector_db.VectorStore, aim *controllers.OpenAIManager, tr *tools.ToolRegistry, orch *orchestrator.Orchestrator, chatDB *chats_db.ChatDB) *Handler {
 	return &Handler{
 		VectorStoreManager: vs,
 		AiManager:          aim,
 		ToolRegistry:       tr,
 		Orchestrator:       orch,
+		ChatDBManager:      chatDB,
 	}
 }
 
@@ -51,7 +53,6 @@ func SendSuccessResponse(w http.ResponseWriter, statusCode int, message string, 
 	response := SuccessResponse{
 		Status:  "success",
 		Message: message,
-		Content: data,
 		Data:    data}
 	encwoder := json.NewEncoder(w)
 	encwoder.SetEscapeHTML(false)
@@ -96,16 +97,25 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (h *Handler) TempHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) AllAvailableLayersHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	data, _ := h.ToolRegistry.Execute(r.Context(), "get_all_available_layers", nil, nil)
-	SendSuccessResponse(w, 200, "Temp Handler", map[string]interface{}{
+	SendSuccessResponse(w, 200, "Got all available layers", map[string]any{
 		"message": "Got the data",
 		"data":    data,
 	})
 }
+func (h *Handler) UpdateCycleHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	h.ToolRegistry.Execute(r.Context(), "get_layer_update_info", nil, nil)
+	updateCycleData, _ := h.ToolRegistry.Execute(r.Context(), "get_layer_update_info", map[string]any{"for_internal_use": true, "layer": ""}, nil)
+	SendSuccessResponse(w, 200, "Got layer update info", map[string]interface{}{
+		"message": "Got the data",
+		"data":    updateCycleData,
+	})
+}
 
-// handleLoadEmbeddings loads embeddings into the vector store
+// HandleLoadEmbeddingsV2 loads embeddings into the vector store using section-based splitting
 func (h *Handler) HandleLoadEmbeddings(w http.ResponseWriter, r *http.Request) {
 	secret := r.URL.Query().Get("secret")
 	if secret != os.Getenv("SECRET") {
@@ -116,24 +126,6 @@ func (h *Handler) HandleLoadEmbeddings(w http.ResponseWriter, r *http.Request) {
 	err := h.VectorStoreManager.LoadEmbeddings()
 	if err != nil {
 		logger.Logger.Errorf("Error while loading embeddings: %v", err)
-		http.Error(w, "Error while loading embeddings", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	SendSuccessResponse(w, 200, "Embeddings loaded successfully", nil)
-}
-
-// HandleLoadEmbeddingsV2 loads embeddings into the vector store using section-based splitting
-func (h *Handler) HandleLoadEmbeddingsV2(w http.ResponseWriter, r *http.Request) {
-	secret := r.URL.Query().Get("secret")
-	if secret != os.Getenv("SECRET") {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	err := h.VectorStoreManager.LoadEmbeddingsV2()
-	if err != nil {
-		logger.Logger.Errorf("Error while loading embeddings v2: %v", err)
 		http.Error(w, "Error while loading embeddings", http.StatusInternalServerError)
 		return
 	}
@@ -223,12 +215,14 @@ type StreamMessage struct {
 // HandleSSEQuery handles streaming query responses via Server-Sent Events
 func (h *Handler) HandleSSEQuery(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		UserName              string `json:"userName"`
 		Query                 string `json:"query"`
 		PreviousConversation  string `json:"previousConversation"`
 		Platform              string `json:"platform"`
 		Model                 string `json:"model"`
-		ClarificationResponse string `json:"clarificationResponse"`		
-		ClarificationCount    int    `json:"clarificationCount"`	}
+		ClarificationResponse string `json:"clarificationResponse"`
+		ClarificationCount    int    `json:"clarificationCount"`
+	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Logger.Errorf("Error decoding request: %v", err)
@@ -257,6 +251,7 @@ func (h *Handler) HandleSSEQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userInput := &orchestrator.ClientRequestType{
+		UserName:              req.UserName,
 		UserQuery:             req.Query,
 		PreviousConversation:  req.PreviousConversation,
 		Platform:              req.Platform,

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -23,42 +24,64 @@ func (gl *GetLayerInformation) Name() string {
 	return "get_layer_info"
 }
 func (gl *GetLayerInformation) Description() string {
-	return `Get detailed information about specific data layers including available properties/fields.
-	 		Supports multiple comma-separated layers in one call.
-			This tool also automatically opens a layer information popup for the user.`
+	return `Get detailed information about a specific data layer including available properties/fields.
+			This tool can open a layer information modal for the user if it would be helpful. `
 }
 
 func (gl *GetLayerInformation) Execute(ctx context.Context, params map[string]any, sendMessage func(msg types.StreamMessage) bool) (any, error) {
 	layerNames := strings.Split(params["layers"].(string), ",")
-	// Check if opening popup is enough
-	isOpeningPopupEnough := false
-	if val, ok := params["isOpeningPopupEnough"].(bool); ok {
-		isOpeningPopupEnough = val
+	paramsToSend := make(map[string]any)
+	maps.Copy(paramsToSend, params)
+	paramsToSend["layers"] = []string{}
+	// Check if opening modal is enough
+	isOpeningModalEnough := false
+	if val, ok := params["isOpeningModalEnough"].(bool); ok {
+		isOpeningModalEnough = val
+	}
+	// Check if opening modal is helpful
+	isOpeningModalHelpful := false
+	if val, ok := params["isOpeningModalHelpful"].(bool); ok {
+		isOpeningModalHelpful = val
 	}
 
 	result := map[string]LayerInformation{}
 	var err error
 	var x *struct{ Data LayerInformation }
-	sendMessage(types.StreamMessage{
-		Type: "tool_request",
-		Data: func() json.RawMessage {
-			data, _ := json.Marshal(struct {
-				ToolName string         `json:"tool_name"`
-				Params   map[string]any `json:"params"`
-			}{
-				ToolName: gl.Name(),
-				Params:   params,
-			})
-			return data
-		}(),
-	})
 
-	// If opening popup is enough, return early with a confirmation message
-	if isOpeningPopupEnough {
-		return map[string]any{
-			"status":  "popup_opened",
-			"message": fmt.Sprintf("Layer information popup has been opened for: %s. The user can view the details in the popup.", strings.Join(layerNames, ", ")),
-		}, nil
+	dataManager := GetDataManager()
+	availableLayers, err := dataManager.GetAvailableLayers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get available layers: %w", err)
+	}
+
+	for _, layerName := range layerNames {
+		for _, availableLayer := range availableLayers {
+			if replaceSpaceAndMakeSmallCase(availableLayer.Name) == replaceSpaceAndMakeSmallCase(strings.TrimSpace(layerName)) {
+				paramsToSend["layers"] = append(paramsToSend["layers"].([]string), replaceSpaceAndMakeSmallCase(availableLayer.Name))
+				break
+			}
+		}
+	}
+	if isOpeningModalHelpful && len(paramsToSend["layers"].([]string)) > 0 {
+		sendMessage(types.StreamMessage{
+			Type: "tool_request",
+			Data: func() json.RawMessage {
+				data, _ := json.Marshal(struct {
+					ToolName string         `json:"tool_name"`
+					Params   map[string]any `json:"params"`
+				}{
+					ToolName: gl.Name(),
+					Params:   paramsToSend,
+				})
+				return data
+			}(),
+		})
+		if isOpeningModalEnough {
+			return map[string]any{
+				"status":  "modal_opened",
+				"message": fmt.Sprintf("Layer information modal has been opened for: %s. The user can view the details in the modal.", strings.Join(layerNames, ", ")),
+			}, nil
+		}
 	}
 
 	for _, layerName := range layerNames {
@@ -85,16 +108,19 @@ func (gl *GetLayerInformation) Definition() openai.FunctionDefinition {
 			"properties": map[string]any{
 				"layers": map[string]any{
 					"type":        "string",
-					"description": "The name of the data layer for which information is to be fetched. If multiple layers, separate by comma(,).",
+					"description": "The name of the data layer for which information is to be fetched.",
 				},
-				"isOpeningPopupEnough": map[string]any{
+				"isOpeningModalHelpful": map[string]any{
 					"type":        "boolean",
-					"description": `This tool always opens a layer information popup for the user. 
-									Set to true if opening the popup is sufficient (the popup contains all layer details). 
-									Set to false only if you need the raw layer data to process, compare, or include in your response even after the popup has been opened.`,
+					"description": "Set to true if opening the layer information modal would be helpful for the user to visualize the layer details.",
+				},
+				"isOpeningModalEnough": map[string]any{
+					"type": "boolean",
+					"description": `Set to true if opening the modal is sufficient and you don't need the raw layer data. 
+									Set to false if you need the raw layer data to process, compare, or include in your response.`,
 				},
 			},
-			"required": []string{"layers", "isOpeningPopupEnough"},
+			"required": []string{"layers", "isOpeningModalHelpful", "isOpeningModalEnough"},
 		},
 	}
 }

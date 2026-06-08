@@ -2,8 +2,6 @@ services:
   ai-service-go:
     container_name: ai-service-go
     image: rishaveeplus/ai-service-go
-    ports:
-      - "8080:8080"
     env_file:
       - .env
     depends_on:
@@ -12,11 +10,9 @@ services:
       - ./public:/app/public:ro
       - ./data/data.txt:/app/data.txt:ro
       - ./data/data.json:/app/data.json:ro
-      - ./data/updates.json:/app/updates.json:ro
       - ./logs:/logs/ai-service
     restart: unless-stopped
     networks:
-      - api_network
       - internal_api_network
 
   qdrant:
@@ -25,7 +21,6 @@ services:
     volumes:
       - ./qdrant_storage:/qdrant/storage
     networks:
-      - api_network
       - internal_api_network
     restart: unless-stopped
 
@@ -39,16 +34,14 @@ services:
     volumes:
       - ai_service_db_data:/var/lib/postgresql/data
     networks:
-      - api_network
       - internal_api_network
-    restart: always
+    restart: unless-stopped
 
 networks:
-  api_network:
-    external: true
   internal_api_network:
     external: true
 
 volumes:
   qdrant_storage:
   ai_service_db_data:
+  

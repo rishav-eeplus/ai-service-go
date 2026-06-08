@@ -80,7 +80,7 @@ func (vs *VectorStore) Initialize() error {
 }
 
 // LoadEmbeddings loads embeddings from data.txt file
-func (vs *VectorStore) LoadEmbeddings() error {
+func (vs *VectorStore) LoadEmbeddingsOld() error {
 	ctx := context.Background()
 
 	// Clear collection first
@@ -148,7 +148,7 @@ func (vs *VectorStore) LoadEmbeddings() error {
 }
 
 // LoadEmbeddingsV2 loads embeddings from data.txt file using section-based splitting
-func (vs *VectorStore) LoadEmbeddingsV2() error {
+func (vs *VectorStore) LoadEmbeddings() error {
 	ctx := context.Background()
 
 	// Clear collection first

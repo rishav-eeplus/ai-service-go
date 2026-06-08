@@ -6,6 +6,14 @@ import (
 	"strconv"
 )
 
+type ChatDBConfig struct {
+	User     string
+	Host     string
+	Port     string
+	Name     string
+	Password string
+}
+
 // Config holds the application configuration
 type Config struct {
 	Port           string
@@ -18,6 +26,7 @@ type Config struct {
 	LayerInfoURL   string
 	AllLayersURL   string
 	SupportEmail   string
+	ChatDBConfig   ChatDBConfig
 }
 
 var AppConfig *Config
@@ -34,6 +43,13 @@ func LoadConfig() {
 		LayerInfoURL:   getEnvOrDefault("LAYER_INFORMATION_URL", ""),
 		AllLayersURL:   getEnvOrDefault("ALL_LAYERS_URL", ""),
 		SupportEmail:   getEnvOrDefault("SUPPORT_EMAIL", ""),
+		ChatDBConfig: ChatDBConfig{
+			User:     getEnvOrDefault("CHAT_DB_USER", ""),
+			Host:     getEnvOrDefault("CHAT_DB_HOST", ""),
+			Port:     getEnvOrDefault("CHAT_DB_PORT", ""),
+			Name:     getEnvOrDefault("CHAT_DB_NAME", ""),
+			Password: getEnvOrDefault("CHAT_DB_PASSWORD", ""),
+		},
 	}
 	logger.Logger.Info("Config loaded successfully ✅")
 	AppConfig = &config

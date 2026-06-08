@@ -143,7 +143,7 @@ func (aiM *OpenAIManager) GenerateResponseV1(userQuery, previousConversation, re
 			},
 			"followUps": map[string]interface{}{
 				"type":        "array",
-				"description": "An array of follow-up questions for further engagement with the user.",
+				"description": "An array of follow-up questions phrased as if asked BY the user (not suggestions TO the user). These should be natural questions a user might ask next. Example: 'What are the available layers?' instead of 'Check available layers'. Maximum 2 questions.",
 				"items": map[string]interface{}{
 					"type": "string",
 				},

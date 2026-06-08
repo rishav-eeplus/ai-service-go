@@ -12,6 +12,8 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+var tickerTimeInterval = 3
+
 // WittyMessages contains all the interactive messages used during processing
 type WittyMessages struct {
 	Thinking      []string
@@ -251,6 +253,188 @@ func DefaultWittyMessages() *WittyMessages {
 			"📝 Pro tip: Prepare text using the Format button before placing it with the Text Tool!",
 			"🎨 Did you know? The Format Tool lets you customize width, pattern, color, and opacity!",
 			"📏 Tip: Enable the Measurement Tool before drawing to see area and distance values!",
+			"📌 Did you know? The Pin Tool lets you mark important locations - perfect for flagging substations!",
+			"🔺 Tip: Use the Polygon Tool to outline multi-sided areas like parks, districts, or zones!",
+			"⭕ Pro tip: The Circle Tool is ideal for marking buffer zones, roundabouts, or circular areas!",
+			"↩️ Tip: Made a mistake? Use the Left Arrow to undo and Right Arrow to redo actions!",
+			"💾 Did you know? Save your drawings with the Floppy Disk icon and reload them with the Circular Arrow!",
+			"🌐 Pro tip: Upload previous drawings using the Cloud Icon with Up Arrow - no need to recreate!",
+			"📐 Tip: Click on any drawn shape to move, resize, or delete it - just deselect drawing tools first!",
+
+			// Technical Terms Explained
+			"📚 TDF (Transfer Distribution Factor) shows what % of power flows through a line - negative means reverse flow!",
+			"⚡ Did you know? Line loading over 100% indicates a constraint violation - the system is overloaded!",
+			"🔌 Pro tip: MVA (Megavolt-Ampere) is the thermal limit of a transmission line!",
+			"🎯 Tip: POI stands for Point of Interconnection - where your project connects to the grid!",
+			"📊 Did you know? ATC (Available Transfer Capacity) is how much power can flow without compromising reliability!",
+			"🌡️ Fun fact: N-1 contingency means the grid can handle any single element failure!",
+			"💡 Pro tip: Lower N-X count means HIGHER SSR risk - watch those lighter contour areas!",
+			"⚙️ Did you know? SSR (Sub-synchronous Resonance) can cause mechanical stress and damage to generators!",
+			"📈 Tip: Shadow Price shows the cost savings if you relax a constraint by 1 MW!",
+			"🔋 Did you know? Round-trip efficiency is how much energy you get back from a battery vs. what you put in!",
+
+			// LMP & Market Insights
+			"💰 Pro tip: LMP = Energy Price + Congestion Cost + Losses - three components!",
+			"📊 Did you know? Day-Ahead (DA) markets plan for the next day, Real-Time (RT) balances immediately!",
+			"🎯 Tip: High LMP areas indicate congestion - great opportunities for new generation!",
+			"⚡ Fun fact: Scarcity pricing during high demand can cause temporary LMP spikes!",
+			"💵 Pro tip: LMP Basis shows the difference between node price and zonal average!",
+			"📈 Did you know? Binding hours tell you how often a constraint was actually limiting!",
+			"🔍 Tip: Unmapped constraints appear in red rows - mapping data is incomplete!",
+			"🌐 Fun fact: Each contour color shade represents a different pricing or capacity level!",
+
+			// Filter & Data Management Tips
+			"🔎 Pro tip: Filters are MANDATORY for contour maps - they won't appear without filtering!",
+			"📋 Did you know? You can filter substations by Zone, County, Voltage, TSP, and Peak Type!",
+			"⚡ Tip: Filter operational resources by fuel type to see specific generation sources!",
+			"📅 Pro tip: Use the Month Filter in Binding Constraints to track changes over time!",
+			"🎨 Did you know? The Basemap Gallery has Dark Gray Canvas - great for presentations!",
+			"🔄 Tip: Large Load Data filters by year - select the year you're interested in!",
+			"📊 Fun fact: You can filter Planned Resources to see only solar, wind, or battery projects!",
+			"🗺️ Pro tip: Use Voltage Filter to see only high-voltage transmission upgrades!",
+
+			// Data Sources & Models
+			"📚 Did you know? EEHorizon uses data from EIA, ISO/RTOs, NREL, and Clarity Grid Solutions!",
+			"🔬 Tip: ERCOT studies use SSWG 2025_SUM1 On Peak and 2025_SPG2 Off Peak models!",
+			"📊 Fun fact: PJM data comes from the 2024_AG1_SIS_TARA model released via FERC!",
+			"🌐 Pro tip: WECC uses the 2027 HS BASE CASE model with withdrawn queues removed!",
+			"📈 Did you know? MISO uses 2021 Cycle Central regional DPP Deliverability models!",
+			"⚡ Tip: Land Parcel data comes from various Appraisal Districts across the country!",
+
+			// SROT Battery Storage Tips
+			"🔋 Pro tip: SROT assumes 100 MW BESS with 2-hour duration and 80% round-trip efficiency!",
+			"📊 Did you know? SROT forecasts battery revenue from 2024 to 2053 - that's 30 years!",
+			"💵 Tip: SROT breaks down revenue into EA (Energy Arbitrage) and AS (Ancillary Services)!",
+			"🎯 Fun fact: The Decomposition toggle shows a waterfall chart of revenue breakdown!",
+			"⚡ Pro tip: Use the Time Scale slider to adjust forecasting periods in SROT!",
+			"🔄 Did you know? SROT allocates 15% to Reg Up, 25% to Reg Down, 1% to RRS!",
+			"💡 Tip: Toggle Scarcity Pricing in SROT to see revenue impact during high-demand periods!",
+			"📈 Fun fact: Click year boxes in the SROT table to compare multiple years at once!",
+
+			// Transmission & Infrastructure
+			"🔌 Did you know? ERCOT operates independently from other U.S. interconnections!",
+			"🗺️ Tip: PJM covers 13 states plus D.C. - from New Jersey to Illinois!",
+			"🌐 Fun fact: WECC includes parts of Canada and Mexico, not just the Western U.S.!",
+			"⚡ Pro tip: MISO spans from the Gulf of Mexico to the Canadian border - huge coverage!",
+			"📍 Did you know? Each ISO uses different terminology - ERCOT: TPIT, PJM: RTEP, MISO: TEP!",
+			"🔧 Tip: Planned Transmission shows project status, voltage, cost, and service date!",
+			"🌟 Fun fact: Nationwide Transmission Lines connect generation to load centers across the U.S.!",
+
+			// Regional & ISO Facts
+			"🗽 Did you know? NYISO serves only New York State - the entire state!",
+			"🌲 Tip: ISO-NE covers all 6 New England states: CT, ME, MA, NH, RI, VT!",
+			"🌾 Fun fact: SPP covers 14 states in the South-Central U.S., including parts of Montana!",
+			"🏖️ Pro tip: SERC is a reliability region, not a market operator like ERCOT or PJM!",
+			"⚡ Did you know? CAISO operates within the WECC reliability region!",
+			"📍 Tip: ERCOT serves most of Texas but not El Paso - that's in the WECC region!",
+
+			// Ancillary Services Explained
+			"⚡ Pro tip: Regulation Up/Down adjusts generation within seconds to maintain frequency!",
+			"🔄 Did you know? Spinning Reserves must be online and ready within 10 minutes!",
+			"💡 Tip: Non-Spinning Reserves can be offline but must respond in 10 minutes!",
+			"🎯 Fun fact: ERCOT's Responsive Reserve Service provides standby reserves for disruptions!",
+			"📊 Pro tip: Thirty-Minute Reserves ramp up capacity within 30 minutes - slower response!",
+			"⚡ Did you know? Regulation Mileage measures how much a resource actually moves up/down!",
+			"🔋 Tip: Ancillary Services maintain grid stability by balancing supply and demand!",
+
+			// User Guide & Navigation
+			"📖 Pro tip: The Info button (bottom left) shows study assumptions and data sources!",
+			"🔍 Did you know? The Search bar auto-suggests related names based on your input!",
+			"🧭 Tip: Use the Home Button in the map toolbox to reset your view instantly!",
+			"📍 Fun fact: The Geolocation Button centers the map on your current location!",
+			"🎯 Pro tip: Zoom controls work with mouse wheel too - no need to click!",
+			"📏 Did you know? The Measure tool works just like Google Maps - click to start, double-click to finish!",
+
+			// Advanced Selection Techniques
+			"🖱️ Pro tip: Use Lasso selection for freeform selection around irregular shapes!",
+			"📍 Tip: Point selection lets you click multiple elements individually - very precise!",
+			"🔄 Did you know? Line selection is perfect for selecting elements along a corridor!",
+			"🎯 Fun fact: Toggle Mode button switches between Select and Deselect modes!",
+			"📊 Pro tip: The Information Bar shows your selection count in real-time!",
+			"↩️ Did you know? Selection also has Undo/Redo - fix mistakes easily!",
+
+			// Data Export Tips
+			"📤 Pro tip: Export limit is 50 features - plan your selections accordingly!",
+			"💾 Tip: You can export to KML, CSV, or GeoJSON - choose what works for your workflow!",
+			"📁 Did you know? Exported files are named by default but can be renamed!",
+			"🔄 Fun fact: Export drawings to back them up or share with team members!",
+			"📊 Pro tip: Use CSV export for spreadsheet analysis, KML for mapping software!",
+
+			// Natural Resources
+			"🌬️ Did you know? Wind turbines operate best within their 'rated wind speed' range!",
+			"☀️ Tip: Solar production directly correlates with irradiance - optimize panel orientation!",
+			"⛽ Fun fact: EEHorizon shows coal mines, oil wells, pipelines, AND refineries!",
+			"🌍 Pro tip: USA Wind Resources layer shows optimal areas for wind farm development!",
+			"📈 Did you know? Higher irradiance = more solar output, but angle matters too!",
+
+			// Large Load & Data Centers
+			"🏭 Did you know? Large Load Data includes loads greater than 75 MW - think data centers!",
+			"💻 Tip: Data centers are rapidly growing and placing unprecedented demands on the grid!",
+			"📊 Fun fact: Manufacturing plants, hospitals, and commercial buildings count as large loads!",
+			"⚡ Pro tip: Large Load layer shows Active Power (MW), Apparent Power (MVA), and Reactive Power (Mvar)!",
+
+			// Cost Analysis & Charts
+			"💰 Pro tip: Reconductoring costs vary by network upgrade level - check all levels!",
+			"📊 Did you know? New Line costs are shown separately from Reconductoring costs!",
+			"🎯 Tip: Click the Info button to see level definitions based on kilovolt (kV) ranges!",
+			"📈 Fun fact: Levels are split by Discharging, Charging, and Load scenarios!",
+			"🔍 Pro tip: Select substations with the selection tool to display cost charts!",
+			"⚡ Did you know? Cost charts are available for PJM, MISO, and WECC regions!",
+
+			// File Upload Capabilities
+			"📁 Pro tip: Add Data supports KML, KMZ, CSV, GeoJSON, AND Shapefiles!",
+			"🌐 Did you know? Upload project files to overlay your data on the platform!",
+			"📊 Tip: Each uploaded layer gets icons for zoom, pan, export, rename, and delete!",
+			"🎨 Fun fact: Draw symbol icon indicates user-created highlighted areas!",
+			"📍 Pro tip: Line and Point symbols show what type of features each layer contains!",
+
+			// Operational & Planned Resources
+			"⚡ Did you know? Planned Resources must have BOTH an IA AND financial commitment!",
+			"🔋 Tip: Operational Resources are color-coded by fuel type - check the legend!",
+			"📅 Fun fact: Planned Resources show Projected COD (Commercial Operation Date)!",
+			"💡 Pro tip: Filter Planned Resources by GIM Study Phase to see project status!",
+			"🌟 Did you know? You can see Expected Capacity in MW for all planned projects!",
+
+			// Binding Constraints Deep Dive
+			"📋 Pro tip: Top 50 Binding Constraints are ranked by monthly shadow price ($/MWmonth)!",
+			"⚡ Did you know? Binding hours show how often a constraint actually limited the grid!",
+			"🔍 Tip: Click constraints on the map to see detailed popup information!",
+			"📊 Fun fact: EE Branch Identifier format clearly shows from/to substations!",
+			"🗺️ Pro tip: Check the box next to a constraint to highlight it on the map!",
+			"📈 Did you know? SP ($/MWh) is the average shadow price during binding events!",
+
+			// Injection Capacity Insights
+			"🎯 Pro tip: Darker colors on Injection Capacity contours = higher capacity available!",
+			"⚡ Did you know? High ATC areas mean less grid congestion - optimal for new projects!",
+			"📊 Tip: Injection Capacity shows max power without compromising reliability!",
+			"🔋 Fun fact: Strategically locate projects in high-capacity zones to minimize curtailment!",
+			"💡 Pro tip: Contours help visualize capacity across entire regions at a glance!",
+
+			// Land Parcels & Environmental
+			"🗺️ Did you know? Land Parcel info is available nationwide - zoom in to see parcels!",
+			"🌍 Tip: U.S. Environmental Resources layer shows permitting requirements!",
+			"📍 Fun fact: County boundaries help with local regulatory and permitting planning!",
+			"🏞️ Pro tip: NERC Regions ensure bulk power system reliability across North America!",
+
+			// Electric Retail Territories
+			"⚡ Did you know? LRE (Load Responsible Entity) supplies power to end-use customers!",
+			"📊 Tip: Click any LRE to see summer/winter capacity, peak values, and provider type!",
+			"🌐 Fun fact: Electric Retail Service Territories show who serves each area!",
+			"💡 Pro tip: LRE data includes holding company and location details!",
+
+			// Daily Average LMP Chart
+			"📈 Pro tip: Access Daily Average LMP Chart via the three-bar icon on Top Navigation!",
+			"💰 Did you know? LMP Chart uses color legends for different peak types and markets!",
+			"🎯 Tip: Select ISO, HUB, and Settlement Point to customize your LMP view!",
+			"📅 Fun fact: Historical LMP data helps predict future pricing patterns!",
+			"⏰ Pro tip: Set Start and End Dates to analyze specific time periods!",
+
+			// Keyboard & Efficiency Tips
+			"⌨️ Pro tip: Double-click to finish drawing lines and polylines - single-click for each point!",
+			"🖱️ Did you know? Single-click drawn elements to select and modify them!",
+			"🔄 Tip: Deselect all drawing tools before trying to move or edit shapes!",
+			"📐 Fun fact: Right-click and drag for curved lines - release to finish!",
+			"✨ Pro tip: Use format presets or customize width, pattern, color, and opacity manually!",
 		},
 
 		ToolStart: map[string][]string{
@@ -452,15 +636,15 @@ func GetEncouragementMessage() string {
 // Mixes tips, encouragement, and long wait messages
 func GetDynamicWaitMessage(elapsedSeconds int) string {
 	// Mix of message types based on elapsed time
-	if elapsedSeconds < 4 {
+	if elapsedSeconds < tickerTimeInterval {
 		return GetEncouragementMessage()
-	} else if elapsedSeconds < 8 {
+	} else if elapsedSeconds < tickerTimeInterval*2 {
 		// 50% chance of tip, 50% chance of encouragement
 		if rand.Intn(2) == 0 {
 			return GetTipOrFact()
 		}
 		return GetEncouragementMessage()
-	} else if elapsedSeconds < 16 {
+	} else if elapsedSeconds < tickerTimeInterval*3 {
 		// Tip or fact
 		return GetTipOrFact()
 	} else {
