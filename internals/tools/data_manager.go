@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const TTL_Duration = 1 * time.Hour
+
 // LayerDataManager manages all cached data for layer-related operations
 type LayerDataManager struct {
 	// Layer information cache
@@ -26,6 +28,10 @@ type LayerDataManager struct {
 	layersLoaded     bool
 	pathsLoaded      bool
 	updateInfoLoaded bool
+	// Last loaded timestamps for TTL management
+	layersLastLoaded time.Time
+	// pathsLastLoaded      time.Time
+	// updateInfoLastLoaded time.Time
 	// Thread safety
 	mutex sync.RWMutex
 }
@@ -51,7 +57,7 @@ func GetDataManager() *LayerDataManager {
 // GetAvailableLayers returns the cached available layers, loading them if necessary
 func (dm *LayerDataManager) GetAvailableLayers(ctx context.Context) ([]AvailableLayersData, error) {
 	dm.mutex.RLock()
-	if dm.layersLoaded && len(dm.availableLayers) > 0 {
+	if dm.layersLoaded && len(dm.availableLayers) > 0 && time.Since(dm.layersLastLoaded) < TTL_Duration {
 		result := make([]AvailableLayersData, len(dm.availableLayers))
 		copy(result, dm.availableLayers)
 		dm.mutex.RUnlock()
@@ -166,7 +172,7 @@ func (dm *LayerDataManager) loadAvailableLayers(ctx context.Context) ([]Availabl
 	defer dm.mutex.Unlock()
 
 	// Double-check after acquiring write lock
-	if dm.layersLoaded && len(dm.availableLayers) > 0 {
+	if dm.layersLoaded && len(dm.availableLayers) > 0 && time.Since(dm.layersLastLoaded) < TTL_Duration {
 		result := make([]AvailableLayersData, len(dm.availableLayers))
 		copy(result, dm.availableLayers)
 		return result, nil
@@ -175,7 +181,14 @@ func (dm *LayerDataManager) loadAvailableLayers(ctx context.Context) ([]Availabl
 	// Call the existing helper function
 	layers, err := getAllAvailableLayersFromAPI(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load available layers: %w", err)
+		logger.Logger.Error("Failed to load available layers: " + err.Error())
+		if len(dm.availableLayers) > 0 {
+			logger.Logger.Warn("Returning stale available layers data due to API failure")
+			result := make([]AvailableLayersData, len(dm.availableLayers))
+			copy(result, dm.availableLayers)
+			return result, nil
+		}
+		return nil, fmt.Errorf("failed to load available layers from API")
 	}
 	// Also load paths while we're at it to filter layers
 	paths, pathsErr := dm.loadLayerPathsInternal()
@@ -193,6 +206,7 @@ func (dm *LayerDataManager) loadAvailableLayers(ctx context.Context) ([]Availabl
 		dm.availableLayers = filteredLayers
 	}
 	dm.layersLoaded = true
+	dm.layersLastLoaded = time.Now()
 	result := make([]AvailableLayersData, len(dm.availableLayers))
 	copy(result, dm.availableLayers)
 	logger.Logger.Info(fmt.Sprintf("Successfully loaded %d available layers", len(dm.availableLayers)))
@@ -214,9 +228,7 @@ func (dm *LayerDataManager) loadLayerPathsInternal() (map[string]string, error) 
 		maps.Copy(result, dm.layerPathMappings)
 		return result, nil
 	}
-
 	logger.Logger.Info("Loading layer paths from data.json...")
-
 	var datas []dataType
 	file, err := os.Open("./data.json")
 	if err != nil {
